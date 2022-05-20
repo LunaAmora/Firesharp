@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Firesharp</AssemblyName>
+    <PublishDir>.</PublishDir>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <PublishSingleFile>true</PublishSingleFile>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <PublishTrimmed>true</PublishTrimmed>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <Target Name="PostClean" AfterTargets="Clean">
+    <RemoveDir Directories="$(BaseIntermediateOutputPath)" /><!-- obj -->
+    <RemoveDir Directories="$(BaseOutputPath)" /><!-- bin -->
+  </Target>
+
+</Project>
