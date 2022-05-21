@@ -21,22 +21,35 @@ static partial class Firesharp
     struct Proc
     {
         public Contract contract;
-        public Queue<Op> procOps = new Queue<Op>();
+        public List<Op> procOps = new List<Op>();
 
         public Proc() => contract = default;
         public Proc(Contract contract) => this.contract = contract;
+    }
+
+    struct Loc
+    {
+        int line;
+        int pos;
+
+        public Loc(int line, int pos)
+        {
+            this.line = line;
+            this.pos = pos;
+        }
     }
     
     abstract class Op 
     {
         public abstract void Check();
         public abstract void Generate();
+        public Loc Loc;
 
-        public static Op New<T>(T type)
-            where T : struct, Enum => new Op<T>(type);
+        public static Op New<T>(T type, Loc loc)
+            where T : struct, Enum => new Op<T>(type, loc);
 
-        public static Op New<T>(T type, int operand)
-            where T : struct, Enum => new Op<T>(type, operand);
+        public static Op New<T>(T type, int operand, Loc loc)
+            where T : struct, Enum => new Op<T>(type, operand, loc);
     }
 
     class Op<t> : Op
@@ -45,8 +58,13 @@ static partial class Firesharp
         public t Type;
         public int Operand;
 
-        public Op(t type) => Type = type;
-        public Op(t type, int operand) : this(type) => Operand = operand;
+        public Op(t type, Loc loc)
+        {
+            Type = type;
+            Loc = loc;
+        }
+        
+        public Op(t type, int operand, Loc loc) : this(type, loc) => Operand = operand;
 
         public override void Check() => TypeCheckOp(this)();
         public override void Generate() => GenerateOp(this)();
@@ -68,18 +86,19 @@ static partial class Firesharp
         same
     }
 
-    enum ActionType
+    enum OpType
     {
         push_int,
         push_bool,
         push_ptr,
         push_str,
         push_cstr,
+        call,
         dup,
         drop,
         swap,
         over,
-        rot
+        rot,
     }
 
     enum IntrinsicType
@@ -88,22 +107,18 @@ static partial class Firesharp
         minus,
         times,
         div,
-        dump,
         equal,
-        call
     }
 
     enum KeywordType
     {
         proc,
+        _in,
         end,
-    }
-
-    enum IntermediateType
-    {
-        Word,
-        Keyword,
-        Action,
-        Intrinsic,
+        dup,
+        drop,
+        swap,
+        over,
+        rot,
     }
 }

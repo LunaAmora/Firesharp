@@ -4,15 +4,30 @@ namespace Firesharp;
 
 static partial class Firesharp
 {
-    static void GenerateWasm(Queue<Op> program)
+    static StreamWriter? output;
+
+    static void GenerateWasm(List<Op> program)
     {
-        using (output = new StreamWriter("out.wat", false))
+        if (!(Path.GetDirectoryName(filepath) is string dir))
         {
+            Exit("could not resolve file directory");
+            return;
+        }
+
+        string buildPath = Path.Combine(dir, "build");
+        Directory.CreateDirectory(buildPath);
+        string outPath = Path.Combine(buildPath, "out.wat");
+
+        using (FileStream file = new FileStream(outPath, FileMode.Create))
+        using (BufferedStream buffered = new BufferedStream(file))
+        using (output = new StreamWriter(buffered))
+        {
+            output.WriteLine("(import \"env\" \"memory\" (memory 1))");
             output.WriteLine("(func $start");
 
-            while (program.TryDequeue(out var current))
+            foreach (Op op in program)
             {
-                current.Generate();
+                op.Generate();
             }
 
             output.WriteLine(")");
@@ -20,8 +35,8 @@ static partial class Firesharp
             output.WriteLine("(export \"start\" (func $start))");
         }
 
-        CmdEcho("wat2wasm out.wat -o out.wasm");
-        CmdEcho("wasm-opt -Oz out.wasm -o out.wasm");
+        CmdEcho($"wat2wasm {outPath} -o {buildPath}/out.wasm");
+        // CmdEcho("wasm-opt -Oz out/out.wasm -o out/out.wasm");
     }
 
     static void CmdEcho(string toExecute)
@@ -45,50 +60,34 @@ static partial class Firesharp
     static Action GenerateOp<opType>(Op<opType> op)
         where opType : struct, Enum => op.Type switch
     {
-        ActionType.push_int  => () =>
+        OpType.push_int  => () =>
         {
-            output.WriteLine($"  i32.const {op.Operand}");
+            output?.WriteLine($"  i32.const {op.Operand}");
         },
-        ActionType.push_bool => () =>
+        OpType.push_bool => () =>
         {
-            output.WriteLine($"  i32.const {op.Operand}");
+            output?.WriteLine($"  i32.const {op.Operand}");
         },
-        ActionType.push_ptr  => () =>
+        OpType.push_ptr  => () =>
         {
-            output.WriteLine($"  i32.const {op.Operand}");
+            output?.WriteLine($"  i32.const {op.Operand}");
         },
-        // ActionType.push_str  => () =>
-        // {
-
-        // },
-        // ActionType.push_cstr => () =>
-        // {
-
-        // },
-        ActionType.drop => () =>
+        OpType.drop => () =>
         {
-            output.WriteLine("  drop");
+            output?.WriteLine("  drop");
         },
         IntrinsicType.plus => () =>
         {
-            output.WriteLine("  i32.add");
+            output?.WriteLine("  i32.add");
         },
         IntrinsicType.minus => () =>
         {
-            output.WriteLine("  i32.sub");
+            output?.WriteLine("  i32.sub");
         },
         IntrinsicType.equal => () =>
         {
-            output.WriteLine("  i32.eq");
+            output?.WriteLine("  i32.eq");
         },
-        IntrinsicType.dump => () =>
-        {
-            output.WriteLine("  i32.drop");
-        },
-        // IntrinsicType.call => () =>
-        // {
-
-        // },
-        _ => () => Debug.Assert(false, $"[Error] Op type not implemented in generation: {op.Type.ToString()}")
+        _ => () => Exit($"Op type not implemented in generation: {op.Type.ToString()}")
     };
 }
