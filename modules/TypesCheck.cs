@@ -8,12 +8,11 @@ static partial class Firesharp
     {
         foreach (Op op in program)
         {
-            op.Check();
+            TypeCheckOp(op)();
         }
     }
 
-    static Action TypeCheckOp<opType>(Op<opType> op)
-        where opType : struct, Enum => op.Type switch
+    static Action TypeCheckOp(Op op)  => op.Type switch
     {
         OpType.push_int  => () => dataStack.Push(DataType._int),
         OpType.push_bool => () => dataStack.Push(DataType._bool),
@@ -29,23 +28,27 @@ static partial class Firesharp
             dataStack.ExpectArity(1, ArityType.any);
             dataStack.Pop();
         },
-        IntrinsicType.plus => () =>
+        OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
-            dataStack.ExpectArity(2, ArityType.same);
-            dataStack.Pop();
-        },
-        IntrinsicType.minus => () =>
-        {
-            dataStack.ExpectArity(2, ArityType.same);
-            dataStack.Pop();
-        },
-        IntrinsicType.equal => () =>
-        {
-            dataStack.ExpectArity(2, ArityType.same);
-            dataStack.Pop();
-            dataStack.Pop();
-            dataStack.Push(DataType._bool);
-        },
+            IntrinsicType.plus => () =>
+            {
+                dataStack.ExpectArity(2, ArityType.same);
+                dataStack.Pop();
+            },
+            IntrinsicType.minus => () =>
+            {
+                dataStack.ExpectArity(2, ArityType.same);
+                dataStack.Pop();
+            },
+            IntrinsicType.equal => () =>
+            {
+                dataStack.ExpectArity(2, ArityType.same);
+                dataStack.Pop();
+                dataStack.Pop();
+                dataStack.Push(DataType._bool);
+            },
+            _ => (Action) (() => Exit($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
+        })(),
         OpType.call => () =>
         {
             Assert(procList.Count > op.Operand, "Proclist does not contain the needed proc id");

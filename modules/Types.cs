@@ -29,8 +29,8 @@ static partial class Firesharp
 
     struct Loc
     {
-        int line;
-        int pos;
+        public int line;
+        public int pos;
 
         public Loc(int line, int pos)
         {
@@ -39,35 +39,24 @@ static partial class Firesharp
         }
     }
     
-    abstract class Op 
+    struct Op 
     {
-        public abstract void Check();
-        public abstract void Generate();
         public Loc Loc;
+        public OpType Type;
+        public int Operand = 0;
 
-        public static Op New<T>(T type, Loc loc)
-            where T : struct, Enum => new Op<T>(type, loc);
-
-        public static Op New<T>(T type, int operand, Loc loc)
-            where T : struct, Enum => new Op<T>(type, operand, loc);
-    }
-
-    class Op<t> : Op
-        where t : struct, Enum
-    {
-        public t Type;
-        public int Operand;
-
-        public Op(t type, Loc loc)
+        public Op(OpType type, Loc loc)
         {
             Type = type;
             Loc = loc;
         }
-        
-        public Op(t type, int operand, Loc loc) : this(type, loc) => Operand = operand;
 
-        public override void Check() => TypeCheckOp(this)();
-        public override void Generate() => GenerateOp(this)();
+        public Op(OpType type, int operand, Loc loc)
+        {
+            Loc = loc;
+            Type = type;
+            Operand = operand;
+        }
     }
 
     enum DataType
@@ -93,6 +82,7 @@ static partial class Firesharp
         push_ptr,
         push_str,
         push_cstr,
+        intrinsic,
         call,
         dup,
         drop,

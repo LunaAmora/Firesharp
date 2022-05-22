@@ -27,7 +27,7 @@ static partial class Firesharp
 
             foreach (Op op in program)
             {
-                op.Generate();
+                GenerateOp(op)();
             }
 
             output.WriteLine(")");
@@ -57,8 +57,7 @@ static partial class Firesharp
         Console.Write(cmd.StandardOutput.ReadToEnd());
     }
 
-    static Action GenerateOp<opType>(Op<opType> op)
-        where opType : struct, Enum => op.Type switch
+    static Action GenerateOp(Op op) => op.Type switch
     {
         OpType.push_int  => () =>
         {
@@ -76,18 +75,23 @@ static partial class Firesharp
         {
             output?.WriteLine("  drop");
         },
-        IntrinsicType.plus => () =>
+        OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
-            output?.WriteLine("  i32.add");
-        },
-        IntrinsicType.minus => () =>
-        {
-            output?.WriteLine("  i32.sub");
-        },
-        IntrinsicType.equal => () =>
-        {
-            output?.WriteLine("  i32.eq");
-        },
+            IntrinsicType.plus => () =>
+            {
+                output?.WriteLine("  i32.add");
+            },
+            IntrinsicType.minus => () =>
+            {
+                output?.WriteLine("  i32.sub");
+            },
+            IntrinsicType.equal => () =>
+            {
+                output?.WriteLine("  i32.eq");
+            },
+            _ => (Action) (() => Exit($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
+        })(),
+
         _ => () => Exit($"Op type not implemented in generation: {op.Type.ToString()}")
     };
 }
