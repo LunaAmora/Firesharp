@@ -61,40 +61,41 @@ static partial class Firesharp
 
     static void ExpectArity(this Stack<DataType> stack, Contract contract)
     {
-        bool arity = true;
         int count = contract.ins.Count() - 1;
 
         Assert(stack.Count > count, "Stack has less elements than expected");
 
         for (int i = 0; i <= count; i++)
         {
-            arity &= stack.ElementAt(i).Equals(contract.ins[count - i]);
+            if (!stack.ElementAt(i).Equals(contract.ins[count - i]))
+            {
+                Error("Arity check failled");
+                return;
+            }
         }
-        
-        Assert(arity, "Arity check failled");
     }
 
     static void ExpectArity(this Stack<DataType> stack, int arityN, ArityType arityT)
     {
         Assert(stack.Count >= arityN, "Stack has less elements than expected");
-        Func<bool> arity = arityT switch
+        Assert(arityT switch
         {
-            ArityType.any  => () => true,
-            ArityType.same => () =>
+            ArityType.any  => true,
+            ArityType.same => ExpectSame(stack, arityN),
+            _ => false
+        }, "Arity check failled");
+    }
+
+    static bool ExpectSame(Stack<DataType> stack, int arityN)
+    {
+        DataType type = stack.ElementAt(0);
+        for (int i = 0; i < arityN - 1; ++i)
+        {
+            if (!type.Equals(stack.ElementAt(i)))
             {
-                DataType type = stack.ElementAt(0);
-                for(int i = 0; i < arityN - 1; ++i)
-                {
-                    if(!type.Equals(stack.ElementAt(i)))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            },
-            _ => () => false
-        };
-        
-        Assert(arity(), "Arity check failled");
+                return false;
+            }
+        }
+        return true;
     }
 }
