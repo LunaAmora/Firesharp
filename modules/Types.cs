@@ -30,12 +30,24 @@ static partial class Firesharp
     struct Loc
     {
         public int line;
-        public int pos;
+        public int col;
 
-        public Loc(int line, int pos)
+        public Loc(int line, int col)
         {
             this.line = line;
-            this.pos = pos;
+            this.col = col;
+        }
+    }
+
+    struct Token
+    {
+        public string name;
+        public Loc loc;
+
+        public Token(string name, int line, int col)
+        {
+            this.name = name;
+            loc = new Loc(line, col);
         }
     }
     

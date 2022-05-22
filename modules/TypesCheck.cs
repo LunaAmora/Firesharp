@@ -47,7 +47,7 @@ static partial class Firesharp
                 dataStack.Pop();
                 dataStack.Push(DataType._bool);
             },
-            _ => (Action) (() => Exit($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
+            _ => (Action) (() => Error($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
         OpType.call => () =>
         {
@@ -56,7 +56,7 @@ static partial class Firesharp
             dataStack.ExpectArity(proc.contract);
             TypeCheck(proc.procOps);
         },
-        _ => () => Exit($"Op type not implemented in typechecking: {op.Type.ToString()}")
+        _ => () => Error($"Op type not implemented in typechecking: {op.Type.ToString()}")
     };
 
     static void ExpectArity(this Stack<DataType> stack, Contract contract)

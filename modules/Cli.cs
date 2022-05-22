@@ -25,32 +25,33 @@ static partial class Firesharp
                         {
                             ParseFile(file);
                         }
-
                     }
                     catch(System.IO.FileNotFoundException)
                     {
-                        Exit($"file not found `{args[i-1]}`");
+                        Error($"file not found `{args[i-1]}`");
                     }
                     return;
                 }
-                default: Exit($"unknown subcommand `{args[i-1]}`"); return;
+                default: Error($"unknown subcommand `{args[i-1]}`"); return;
             }
         }
     }
 
-    static void Exit(string errorText, int exitCode)
+    static void Error(string errorText) => Error(errorText, -1);
+    static void Exit() => Environment.Exit(0);
+
+    static void Error(string errorText, int exitCode)
     {
         Console.Error.WriteLine($"[ERROR] {errorText}");
         Environment.Exit(exitCode);
     }
 
-    static void Exit(string errorText) => Exit(errorText, -1);
-
-    static void Assert(bool cond, string errorText)
+    static bool Assert(bool cond, string errorText)
     {
         if(!cond)
         {
-            Exit(errorText);
+            Error(errorText);
         }
+        return cond;
     }
 }

@@ -8,7 +8,7 @@ static partial class Firesharp
     {
         if (Path.GetDirectoryName(filepath) is not string dir)
         {
-            Exit("could not resolve file directory");
+            Error("could not resolve file directory");
             return;
         }
 
@@ -86,9 +86,9 @@ static partial class Firesharp
             {
                 output.WriteLine("  i32.eq");
             },
-            _ => (Action) (() => Exit($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
+            _ => (Action) (() => Error($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
 
-        _ => () => Exit($"Op type not implemented in generation: {op.Type.ToString()}")
+        _ => () => Error($"Op type not implemented in generation: {op.Type.ToString()}")
     };
 }
