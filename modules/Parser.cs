@@ -4,62 +4,72 @@ static partial class Firesharp
 {
     static void ParseFile(FileStream file)
     {
-        using(Parser parser = new Parser(file))
+        using(var reader = new StreamReader(file))
         {
+            var parser = new Parser(reader);
             ParseTokens(parser);
         }
     }
 
-    class Parser : IDisposable
+    ref struct Parser
     {
-        StreamReader reader;
-        string[]? tokens;
+        StreamReader stream;
+        ReadOnlySpan<char> buffer = ReadOnlySpan<char>.Empty;
         
-        public int currentToken;
-        public int tokenPos;
-        public int lineNumber;
+        int parserPos = 0;
+        public int colNum = 0;
+        public int lineNum = 0;
 
-        public Parser(FileStream file)
+        public Parser(StreamReader reader) => stream = reader;
+
+        bool ReadLine()
         {
-            reader = new StreamReader(file);
+            if (stream.ReadLine() is string line)
+            {
+                buffer = line.AsSpan();
+                colNum = 0;
+                parserPos = 0;
+                lineNum++;
+                return true;
+            }
+            buffer = ReadOnlySpan<char>.Empty;
+            return false;
         }
 
-        public void NextLine()
+        public void AdvanceByPredicate(Predicate<char> pred)
         {
-            if (reader.ReadLine() is string line)
+            while(buffer.Length > parserPos && !pred(buffer[parserPos]))
             {
-                tokens = line.Split(' ');
-                currentToken = 0;
-                tokenPos = 0;
-                lineNumber++;
+                parserPos++;
             }
-            else
-            {
-                tokens = null;
-            }
+        }
+
+        public string ReadByPredicate(Predicate<char> pred)
+        {
+            AdvanceByPredicate(pred);
+            return buffer.Slice(colNum, parserPos - colNum).ToString();
+        }
+
+        public void TrimLeft()
+        {
+            AdvanceByPredicate((pred) => pred != ' ');
+            colNum = parserPos;
         }
 
         public bool NextToken(out string token)
         {
-            if(tokens is null || currentToken >= tokens.Count())
+            if(buffer.IsEmpty || parserPos >= buffer.Length - 1)
             {
-                NextLine();
-            }
-
-            if (tokens is null)
-            {
-                token = "";
-                return false;
+                if (!ReadLine())
+                {
+                    token = "";
+                    return false;
+                }
             }
             
-            token = tokens[currentToken++];
-            tokenPos += token.Length;
+            TrimLeft();
+            token = ReadByPredicate((pred) => pred == ' ');
             return true;
-        }
-
-        public void Dispose()
-        {
-            reader.Dispose();
         }
     }
 
@@ -67,7 +77,7 @@ static partial class Firesharp
     {
         while (parser.NextToken(out string token))
         {
-            Loc loc = new Loc(parser.lineNumber, parser.tokenPos);
+            Loc loc = new Loc(parser.lineNum, parser.colNum + 1);
             if(TryParseNumber(token, out int value))
             {
                 program.Add(new Op(OpType.push_int, value, loc));
@@ -80,7 +90,7 @@ static partial class Firesharp
             {
                 program.Add(new Op(OpType.intrinsic, (int)intrinsic, loc));
             }
-            else Exit($"could not parse the word `{token}` at line: {loc.line}, pos: {loc.pos}");
+            else Exit($"could not parse the word `{token}` at line {loc.line}, col {loc.pos}");
         }
     }
 
