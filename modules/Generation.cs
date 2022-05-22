@@ -4,11 +4,9 @@ namespace Firesharp;
 
 static partial class Firesharp
 {
-    static StreamWriter? output;
-
     static void GenerateWasm(List<Op> program)
     {
-        if (!(Path.GetDirectoryName(filepath) is string dir))
+        if (Path.GetDirectoryName(filepath) is not string dir)
         {
             Exit("could not resolve file directory");
             return;
@@ -20,18 +18,17 @@ static partial class Firesharp
 
         using (FileStream file = new FileStream(outPath, FileMode.Create))
         using (BufferedStream buffered = new BufferedStream(file))
-        using (output = new StreamWriter(buffered))
+        using (StreamWriter output = new StreamWriter(buffered))
         {
             output.WriteLine("(import \"env\" \"memory\" (memory 1))");
             output.WriteLine("(func $start");
 
             foreach (Op op in program)
             {
-                GenerateOp(op)();
+                GenerateOp(op, output)();
             }
 
             output.WriteLine(")");
-
             output.WriteLine("(export \"start\" (func $start))");
         }
 
@@ -57,37 +54,37 @@ static partial class Firesharp
         Console.Write(cmd.StandardOutput.ReadToEnd());
     }
 
-    static Action GenerateOp(Op op) => op.Type switch
+    static Action GenerateOp(Op op, StreamWriter output) => op.Type switch
     {
         OpType.push_int  => () =>
         {
-            output?.WriteLine($"  i32.const {op.Operand}");
+            output.WriteLine($"  i32.const {op.Operand}");
         },
         OpType.push_bool => () =>
         {
-            output?.WriteLine($"  i32.const {op.Operand}");
+            output.WriteLine($"  i32.const {op.Operand}");
         },
         OpType.push_ptr  => () =>
         {
-            output?.WriteLine($"  i32.const {op.Operand}");
+            output.WriteLine($"  i32.const {op.Operand}");
         },
         OpType.drop => () =>
         {
-            output?.WriteLine("  drop");
+            output.WriteLine("  drop");
         },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
             IntrinsicType.plus => () =>
             {
-                output?.WriteLine("  i32.add");
+                output.WriteLine("  i32.add");
             },
             IntrinsicType.minus => () =>
             {
-                output?.WriteLine("  i32.sub");
+                output.WriteLine("  i32.sub");
             },
             IntrinsicType.equal => () =>
             {
-                output?.WriteLine("  i32.eq");
+                output.WriteLine("  i32.eq");
             },
             _ => (Action) (() => Exit($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
