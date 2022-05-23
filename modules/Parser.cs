@@ -92,6 +92,8 @@ static partial class Firesharp
         return false;
     }
 
+    static bool TryParseNumber(string token, out int value) => Int32.TryParse(token, out value);
+
     static bool TryParseKeyword(string token, out KeywordType result)
     {
         result = token switch
@@ -105,8 +107,6 @@ static partial class Firesharp
         };
         return (int)result >= 0;
     }
-
-    static bool TryParseNumber(string token, out int value) => Int32.TryParse(token, out value);
 
     static bool TryParseIntrinsic(string token, out IntrinsicType result)
     {
@@ -122,9 +122,12 @@ static partial class Firesharp
         return (int)result >= 0;
     }
 
-    static bool DefineOp<t>(t token, Loc loc)
+    static bool DefineOp<t>(t token, Loc loc) where t : struct, Enum => DefineOp(token, 0, loc);
+    static bool DefineOp<t>(t token, int operand, Loc loc)
         where t : struct, Enum => Assert(token switch
     {
+        OpType.intrinsic => RegisterOp(OpType.intrinsic, operand, loc),
+        DataType._int    => RegisterOp(OpType.push_int,  operand, loc),
         KeywordType.dup  => RegisterOp(OpType.dup,  loc),
         KeywordType.swap => RegisterOp(OpType.swap, loc),
         KeywordType.drop => RegisterOp(OpType.drop, loc),
@@ -133,20 +136,7 @@ static partial class Firesharp
         _ => -1
     } >= 0, $"could not define a op for the token `{token}`");
 
-    static bool DefineOp<t>(t token, int operand, Loc loc)
-        where t : struct, Enum => Assert(token switch
-    {
-        DataType._int    => RegisterOp(OpType.push_int,  operand, loc),
-        OpType.intrinsic => RegisterOp(OpType.intrinsic, operand, loc),
-        _ => -1
-    } >= 0, $"could not define a op for the token `{token}`");
-
-    static int RegisterOp(OpType type, Loc loc)
-    {
-        program.Add(new Op(type, loc));
-        return program.Count() - 1;
-    }
-
+    static int RegisterOp(OpType type, Loc loc) => RegisterOp(type, 0, loc);
     static int RegisterOp(OpType type, int operand, Loc loc)
     {
         program.Add(new Op(type, operand, loc));

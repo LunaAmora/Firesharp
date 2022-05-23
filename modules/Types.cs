@@ -4,18 +4,14 @@ static partial class Firesharp
 {
     struct Contract
     {
-        public List<DataType> ins = new List<DataType>();
-        public List<DataType> outs = new List<DataType>();
+        public List<DataType> inTypes = new List<DataType>();
+        public List<DataType> outTypes = new List<DataType>();
         
-        public Contract(List<DataType> ins) => this.ins = ins;
-        public Contract(params DataType[] ins) => this.ins.AddRange(ins);
+        public Contract(List<DataType> ins) => inTypes = ins;
+        public Contract(params DataType[] ins) => inTypes.AddRange(ins);
 
-        public Contract(DataType[] ins, DataType[] outs) : this(ins) => this.outs.AddRange(outs);
-        public Contract(List<DataType> ins, List<DataType> outs)
-        {
-            this.ins = ins;
-            this.outs = outs;
-        }
+        public Contract(List<DataType> ins, List<DataType> outs) : this(ins) => outTypes = outs;
+        public Contract(DataType[] ins, DataType[] outs) : this(ins) => outTypes.AddRange(outs);
     }
 
     struct Proc

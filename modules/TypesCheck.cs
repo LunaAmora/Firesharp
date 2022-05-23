@@ -55,19 +55,19 @@ static partial class Firesharp
             Proc proc = procList.ElementAt(op.Operand);
             dataStack.ExpectArity(proc.contract);
             TypeCheck(proc.procOps);
+            Error("OpType.call outputs are not typechecked yet");
         },
         _ => () => Error($"Op type not implemented in typechecking: {op.Type.ToString()}")
     };
 
     static void ExpectArity(this Stack<DataType> stack, Contract contract)
     {
-        int count = contract.ins.Count() - 1;
-
+        int count = contract.inTypes.Count() - 1;
         Assert(stack.Count > count, "Stack has less elements than expected");
 
         for (int i = 0; i <= count; i++)
         {
-            if (!stack.ElementAt(i).Equals(contract.ins[count - i]))
+            if (!stack.ElementAt(i).Equals(contract.inTypes[count - i]))
             {
                 Error("Arity check failled");
                 return;
