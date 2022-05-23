@@ -19,14 +19,42 @@ static partial class Firesharp
         OpType.push_ptr  => () => dataStack.Push(DataType._ptr),
         OpType.push_str  => () => dataStack.Push(DataType._str),
         OpType.push_cstr => () => dataStack.Push(DataType._cstr),
-        OpType.swap => () =>
+        OpType.swap => () => 
         {
             dataStack.ExpectArity(2, ArityType.any);
+            var A = dataStack.Pop();
+            var B = dataStack.Pop();
+            dataStack.Push(A);
+            dataStack.Push(B);
         },
         OpType.drop => () =>
         {
             dataStack.ExpectArity(1, ArityType.any);
             dataStack.Pop();
+        },
+        OpType.dup => () =>
+        {
+            dataStack.ExpectArity(1, ArityType.any);
+            dataStack.Push(dataStack.Peek());
+        },
+        OpType.rot => () =>
+        {
+            dataStack.ExpectArity(3, ArityType.any);
+            var A = dataStack.Pop();
+            var B = dataStack.Pop();
+            var C = dataStack.Pop();
+            dataStack.Push(B);
+            dataStack.Push(A);
+            dataStack.Push(C);
+        },
+        OpType.over => () =>
+        {
+            dataStack.ExpectArity(2, ArityType.any);
+            var A = dataStack.Pop();
+            var B = dataStack.Pop();
+            dataStack.Push(B);
+            dataStack.Push(A);
+            dataStack.Push(B);
         },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {

@@ -20,15 +20,21 @@ static partial class Firesharp
         using (BufferedStream buffered = new BufferedStream(file))
         using (StreamWriter output = new StreamWriter(buffered))
         {
-            output.WriteLine("(import \"env\" \"memory\" (memory 1))");
-            output.WriteLine("(func $start");
+            output.WriteLine("(memory 1)");
+            output.WriteLine("(export \"memory\" (memory 0))\n");
+            output.WriteLine("(func $dup (param i32 ) (result i32 i32) local.get 0 local.get 0)");
+            output.WriteLine("(func $swap (param i32 i32) (result i32 i32) local.get 1 local.get 0)");
+            output.WriteLine("(func $over (param i32 i32) (result i32 i32 i32) local.get 0 local.get 1 local.get 0)");
+            output.WriteLine("(func $rot (param i32 i32 i32) (result i32 i32 i32) local.get 1 local.get 2 local.get 0)");
+
+            output.WriteLine("\n(func $start");
 
             foreach (Op op in program)
             {
                 GenerateOp(op, output)();
             }
 
-            output.WriteLine(")");
+            output.WriteLine(")\n");
             output.WriteLine("(export \"start\" (func $start))");
         }
 
@@ -56,36 +62,19 @@ static partial class Firesharp
 
     static Action GenerateOp(Op op, StreamWriter output) => op.Type switch
     {
-        OpType.push_int  => () =>
-        {
-            output.WriteLine($"  i32.const {op.Operand}");
-        },
-        OpType.push_bool => () =>
-        {
-            output.WriteLine($"  i32.const {op.Operand}");
-        },
-        OpType.push_ptr  => () =>
-        {
-            output.WriteLine($"  i32.const {op.Operand}");
-        },
-        OpType.drop => () =>
-        {
-            output.WriteLine("  drop");
-        },
+        OpType.push_int  => () => output.WriteLine("  i32.const {0}", op.Operand),
+        OpType.push_bool => () => output.WriteLine("  i32.const {0}", op.Operand),
+        OpType.push_ptr  => () => output.WriteLine("  i32.const {0}", op.Operand),
+        OpType.over      => () => output.WriteLine("  call $over"),
+        OpType.swap      => () => output.WriteLine("  call $swap"),
+        OpType.dup       => () => output.WriteLine("  call $dup"),
+        OpType.rot       => () => output.WriteLine("  call $rot"),
+        OpType.drop      => () => output.WriteLine("  drop"),
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
-            IntrinsicType.plus => () =>
-            {
-                output.WriteLine("  i32.add");
-            },
-            IntrinsicType.minus => () =>
-            {
-                output.WriteLine("  i32.sub");
-            },
-            IntrinsicType.equal => () =>
-            {
-                output.WriteLine("  i32.eq");
-            },
+            IntrinsicType.plus  => () => output.WriteLine("  i32.add"),
+            IntrinsicType.minus => () => output.WriteLine("  i32.sub"),
+            IntrinsicType.equal => () => output.WriteLine("  i32.eq"),
             _ => (Action) (() => Error($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
 
