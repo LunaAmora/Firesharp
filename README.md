@@ -5,9 +5,9 @@ An experiment on programming language development using C#, that is:
 - Concatenative
 - Compiled to WASM
 
-### Quickstart (not fully functional)
+### Quickstart (only functional on linux yet)
 
-You will need [WABT](https://github.com/WebAssembly/wabt). Then, compile the `test.fire` with:
+You will need [WABT](https://github.com/WebAssembly/wabt). Then, you can compile the `test.fire` file with:
 
 ```console
 $ dotnet run -com src/test.fire
