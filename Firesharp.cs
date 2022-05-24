@@ -2,8 +2,8 @@
 
 static partial class Firesharp
 {
-    static List<Proc> procList = new List<Proc>();
-    static List<Op> program = new List<Op>();
+    static List<Proc> procList = new ();
+    static List<Op> program = new ();
 
     static void Main(string[] args)
     {

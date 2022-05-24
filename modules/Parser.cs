@@ -4,9 +4,9 @@ static partial class Firesharp
 {
     static void ParseFile(FileStream file, string filepath)
     {
-        using(var reader = new StreamReader(file))
+        using (var reader = new StreamReader(file))
         {
-            var lexer = new Lexer(reader, filepath);
+            Lexer lexer = new (reader, filepath);
             while(lexer.ParseNextToken() is IRToken token)
             {
                 token.DefineOp();
@@ -73,7 +73,7 @@ static partial class Firesharp
             }
 
             TrimLeft();
-            token = new Token(ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
+            token = new (ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
             return true;
         }
     }
@@ -85,15 +85,15 @@ static partial class Firesharp
         {
             if(TryParseNumber(tok.name, out int value))
             {
-                nextToken = new IRToken(DataType._int, value, tok.loc);
+                nextToken = new (DataType._int, value, tok.loc);
             }
             else if(TryParseKeyword(tok.name, out KeywordType keyword))
             {
-                nextToken = new IRToken(keyword, tok.loc);
+                nextToken = new (keyword, tok.loc);
             }
             else if(TryParseIntrinsic(tok.name, out IntrinsicType intrinsic))
             {
-                nextToken = new IRToken(OpType.intrinsic, (int)intrinsic, tok.loc);
+                nextToken = new (OpType.intrinsic, (int)intrinsic, tok.loc);
             }
             else Error(tok.loc, $"could not parse the word `{tok.name}`");
         }
@@ -145,7 +145,7 @@ static partial class Firesharp
     static int RegisterOp(OpType type, Loc loc) => RegisterOp(type, 0, loc);
     static int RegisterOp(OpType type, int operand, Loc loc)
     {
-        program.Add(new Op(type, operand, loc));
+        program.Add(new (type, operand, loc));
         return program.Count() - 1;
     }
 }

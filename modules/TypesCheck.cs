@@ -2,7 +2,7 @@ namespace Firesharp;
 
 static partial class Firesharp
 {
-    static Stack<DataType> dataStack = new Stack<DataType>();
+    static Stack<TypeLoc> dataStack = new ();
 
     static void TypeCheck(List<Op> program)
     {
@@ -14,11 +14,11 @@ static partial class Firesharp
 
     static Action TypeCheckOp(Op op)  => op.Type switch
     {
-        OpType.push_int  => () => dataStack.Push(DataType._int),
-        OpType.push_bool => () => dataStack.Push(DataType._bool),
-        OpType.push_ptr  => () => dataStack.Push(DataType._ptr),
-        OpType.push_str  => () => dataStack.Push(DataType._str),
-        OpType.push_cstr => () => dataStack.Push(DataType._cstr),
+        OpType.push_int  => () => dataStack.Push(new (DataType._int,  op.Loc)),
+        OpType.push_bool => () => dataStack.Push(new (DataType._bool, op.Loc)),
+        OpType.push_ptr  => () => dataStack.Push(new (DataType._ptr,  op.Loc)),
+        OpType.push_str  => () => dataStack.Push(new (DataType._str,  op.Loc)),
+        OpType.push_cstr => () => dataStack.Push(new (DataType._cstr, op.Loc)),
         OpType.swap => () => 
         {
             dataStack.ExpectArity(2, ArityType.any, op.Loc);
@@ -73,7 +73,7 @@ static partial class Firesharp
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push(DataType._bool);
+                dataStack.Push(new (DataType._bool, op.Loc));
             },
             _ => (Action) (() => Error(op.Loc, $"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
@@ -88,14 +88,14 @@ static partial class Firesharp
         _ => () => Error(op.Loc, $"Op type not implemented in typechecking: {op.Type.ToString()}")
     };
 
-    static void ExpectArity(this Stack<DataType> stack, Contract contract, Loc loc)
+    static void ExpectArity(this Stack<TypeLoc> stack, Contract contract, Loc loc)
     {
         int count = contract.inTypes.Count() - 1;
         Assert(stack.Count > count, loc, "Stack has less elements than expected");
 
         for (int i = 0; i <= count; i++)
         {
-            if (!stack.ElementAt(i).Equals(contract.inTypes[count - i]))
+            if (!stack.ElementAt(i).Type.Equals(contract.inTypes[count - i]))
             {
                 Error(loc, "Arity check failled");
                 return;
@@ -103,7 +103,7 @@ static partial class Firesharp
         }
     }
 
-    static void ExpectArity(this Stack<DataType> stack, int arityN, ArityType arityT, Loc loc)
+    static void ExpectArity(this Stack<TypeLoc> stack, int arityN, ArityType arityT, Loc loc)
     {
         Assert(stack.Count >= arityN, loc, "Stack has less elements than expected");
         Assert(arityT switch
@@ -114,12 +114,12 @@ static partial class Firesharp
         }, loc, "Arity check failled");
     }
 
-    static bool ExpectSame(Stack<DataType> stack, int arityN)
+    static bool ExpectSame(Stack<TypeLoc> stack, int arityN)
     {
-        DataType type = stack.ElementAt(0);
+        var first = stack.ElementAt(0).Type;
         for (int i = 0; i < arityN - 1; ++i)
         {
-            if (!type.Equals(stack.ElementAt(i)))
+            if (!first.Equals(stack.ElementAt(i).Type))
             {
                 return false;
             }

@@ -21,7 +21,7 @@ static partial class Firesharp
                     
                     try
                     {
-                        using (FileStream file = new FileStream(filepath, FileMode.Open))
+                        using (var file = new FileStream(filepath, FileMode.Open))
                         {
                             ParseFile(file, filepath);
                         }

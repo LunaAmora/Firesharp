@@ -16,9 +16,9 @@ static partial class Firesharp
         Directory.CreateDirectory(buildPath);
         string outPath = Path.Combine(buildPath, "out.wat");
 
-        using (FileStream file = new FileStream(outPath, FileMode.Create))
-        using (BufferedStream buffered = new BufferedStream(file))
-        using (StreamWriter output = new StreamWriter(buffered))
+        using (var file     = new FileStream(outPath, FileMode.Create))
+        using (var buffered = new BufferedStream(file))
+        using (var output   = new StreamWriter(buffered))
         {
             output.WriteLine("(memory 1)");
             output.WriteLine("(export \"memory\" (memory 0))\n");
@@ -56,7 +56,7 @@ static partial class Firesharp
     {
         Console.Write($"[CMD] ");
         Console.WriteLine(format, arg);
-        Process cmd = new Process();
+        var cmd = new Process();
         cmd.StartInfo.FileName = "/bin/bash";
         cmd.StartInfo.RedirectStandardInput = true;
         cmd.StartInfo.RedirectStandardOutput = true;
@@ -88,7 +88,6 @@ static partial class Firesharp
             IntrinsicType.equal => () => output.WriteLine("  i32.eq"),
             _ => (Action) (() => Error($"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
-
         _ => () => Error($"Op type not implemented in generation: {op.Type.ToString()}")
     };
 }

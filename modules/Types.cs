@@ -4,8 +4,8 @@ static partial class Firesharp
 {
     struct Contract
     {
-        public List<DataType> inTypes = new List<DataType>();
-        public List<DataType> outTypes = new List<DataType>();
+        public List<DataType> inTypes = new ();
+        public List<DataType> outTypes = new ();
         
         public Contract(List<DataType> ins) => inTypes = ins;
         public Contract(params DataType[] ins) => inTypes.AddRange(ins);
@@ -17,7 +17,7 @@ static partial class Firesharp
     struct Proc
     {
         public Contract contract;
-        public List<Op> procOps = new List<Op>();
+        public List<Op> procOps = new ();
 
         public Proc() => contract = default;
         public Proc(Contract contract) => this.contract = contract;
@@ -47,7 +47,7 @@ static partial class Firesharp
         public Token(string tokenName, string file, int line, int col)
         {
             name = tokenName;
-            loc = new Loc(file, line, col);
+            loc = new (file, line, col);
         }
     }
     
@@ -86,6 +86,18 @@ static partial class Firesharp
             Loc = loc;
             Type = type;
             Operand = operand;
+        }
+    }
+
+    struct TypeLoc
+    {
+        public DataType Type;
+        public Loc Loc;
+
+        public TypeLoc(DataType type, Loc loc)
+        {
+            Type = type;
+            Loc = loc;
         }
     }
 
