@@ -23,7 +23,7 @@ static partial class Firesharp
                     {
                         using (FileStream file = new FileStream(filepath, FileMode.Open))
                         {
-                            ParseFile(file);
+                            ParseFile(file, filepath);
                         }
                     }
                     catch(System.IO.FileNotFoundException)
@@ -37,13 +37,24 @@ static partial class Firesharp
         }
     }
 
-    static void Error(string errorText) => Error(errorText, -1);
     static void Exit() => Environment.Exit(0);
 
     static void Error(string errorText, int exitCode)
     {
-        Console.Error.WriteLine($"[ERROR] {errorText}");
+        Console.Error.WriteLine(errorText);
         Environment.Exit(exitCode);
+    }
+
+    static void Error(string errorText) => Error($"[ERROR] {errorText}", -1);
+    static void Error(Loc loc, string errorText) => Error($"{loc} [ERROR] {errorText}", -1);
+
+    static bool Assert(bool cond, Loc loc, string errorText)
+    {
+        if(!cond)
+        {
+            Error(loc, errorText);
+        }
+        return cond;
     }
 
     static bool Assert(bool cond, string errorText)

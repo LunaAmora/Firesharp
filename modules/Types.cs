@@ -25,14 +25,18 @@ static partial class Firesharp
 
     struct Loc
     {
+        public string file;
         public int line;
         public int col;
 
-        public Loc(int line, int col)
+        public Loc(string filename, int lineNum, int colNum)
         {
-            this.line = line;
-            this.col = col;
+            file = filename;
+            line = lineNum;
+            col = colNum;
         }
+
+        public override string? ToString() => $"{file}:{line}:{col}:";
     }
 
     struct Token
@@ -40,10 +44,10 @@ static partial class Firesharp
         public string name;
         public Loc loc;
 
-        public Token(string name, int line, int col)
+        public Token(string tokenName, string file, int line, int col)
         {
-            this.name = name;
-            loc = new Loc(line, col);
+            name = tokenName;
+            loc = new Loc(file, line, col);
         }
     }
     

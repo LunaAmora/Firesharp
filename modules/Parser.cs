@@ -2,25 +2,30 @@ namespace Firesharp;
 
 static partial class Firesharp
 {
-    static void ParseFile(FileStream file)
+    static void ParseFile(FileStream file, string filepath)
     {
         using(var reader = new StreamReader(file))
         {
-            var lexer = new Lexer(reader);
+            var lexer = new Lexer(reader, filepath);
             while(lexer.ParseNextToken());
         }
     }
 
     ref struct Lexer
     {
-        StreamReader stream;
         ReadOnlySpan<char> buffer = ReadOnlySpan<char>.Empty;
-        
+        StreamReader stream;
+        string file;
+
         int parserPos = 0;
         int colNum = 0;
         int lineNum = 0;
 
-        public Lexer(StreamReader reader) => stream = reader;
+        public Lexer(StreamReader reader, string filepath)
+        {
+            stream = reader;
+            file = filepath;
+        }
 
         bool ReadLine()
         {
@@ -65,7 +70,7 @@ static partial class Firesharp
             }
 
             TrimLeft();
-            token = new Token(ReadByPredicate(pred => pred == ' '), lineNum, colNum + 1);
+            token = new Token(ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
             return true;
         }
     }
@@ -86,7 +91,7 @@ static partial class Firesharp
             {
                 DefineOp(OpType.intrinsic, (int)intrinsic, tok.loc);
             }
-            else Error($"could not parse the word `{tok.name}` at line {tok.loc.line}, col {tok.loc.col}");
+            else Error(tok.loc, $"could not parse the word `{tok.name}`");
             return true;
         }
         return false;
@@ -134,7 +139,7 @@ static partial class Firesharp
         KeywordType.over => RegisterOp(OpType.over, loc),
         KeywordType.rot  => RegisterOp(OpType.rot,  loc),
         _ => -1
-    } >= 0, $"could not define a op for the token `{token}`");
+    } >= 0, loc, $"could not define a op for the token `{token}`");
 
     static int RegisterOp(OpType type, Loc loc) => RegisterOp(type, 0, loc);
     static int RegisterOp(OpType type, int operand, Loc loc)
