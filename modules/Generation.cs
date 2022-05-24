@@ -22,10 +22,18 @@ static partial class Firesharp
         {
             output.WriteLine("(memory 1)");
             output.WriteLine("(export \"memory\" (memory 0))\n");
+
+            output.WriteLine("(global $LOCAL_STACK (mut i32) (i32.const 0))\n");
+
             output.WriteLine("(func $dup (param i32 ) (result i32 i32) local.get 0 local.get 0)");
             output.WriteLine("(func $swap (param i32 i32) (result i32 i32) local.get 1 local.get 0)");
             output.WriteLine("(func $over (param i32 i32) (result i32 i32 i32) local.get 0 local.get 1 local.get 0)");
-            output.WriteLine("(func $rot (param i32 i32 i32) (result i32 i32 i32) local.get 1 local.get 2 local.get 0)");
+            output.WriteLine("(func $rot (param i32 i32 i32) (result i32 i32 i32) local.get 1 local.get 2 local.get 0)\n");
+
+            output.WriteLine("(func $aloc_local (param i32) global.get $LOCAL_STACK local.get 0 i32.add global.set $LOCAL_STACK)");
+            output.WriteLine("(func $free_local (param i32) global.get $LOCAL_STACK local.get 0 i32.sub global.set $LOCAL_STACK)");
+            output.WriteLine("(func $bind_local (param i32) global.get $LOCAL_STACK local.get 0 i32.store i32.const 4 call $aloc_local)");
+            output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)");
 
             output.WriteLine("\n(func $start");
 
