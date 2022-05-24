@@ -46,14 +46,16 @@ static partial class Firesharp
             output.WriteLine("(export \"_start\" (func $start))");
         }
         string outWasm = $"{buildPath}/out.wasm";
-        CmdEcho($"wat2wasm {outPath} -o {outWasm}");
-        // CmdEcho("wasm-opt -Oz {outWasm} -o {outWasm}");
-        // CmdEcho($"wasmtime {outWasm}");
+        CmdEcho("wat2wasm {0} -o {1}", outPath, outWasm);
+        // CmdEcho("wasm-opt -Oz --enable-multivalue {0} -o {0}", outWasm);
+        // CmdEcho("wasm2wat {0} -o {1}", outWasm, outPath);
+        // CmdEcho("wasmtime {0}", outWasm);
     }
 
-    static void CmdEcho(string toExecute)
+    static void CmdEcho(string format, params object?[] arg)
     {
-        Console.WriteLine($"[CMD] {toExecute}");
+        Console.Write($"[CMD] ");
+        Console.WriteLine(format, arg);
         Process cmd = new Process();
         cmd.StartInfo.FileName = "/bin/bash";
         cmd.StartInfo.RedirectStandardInput = true;
@@ -62,7 +64,7 @@ static partial class Firesharp
         cmd.StartInfo.UseShellExecute = false;
         cmd.Start();
 
-        cmd.StandardInput.WriteLine(toExecute);
+        cmd.StandardInput.WriteLine(format, arg);
         cmd.StandardInput.Flush();
         cmd.StandardInput.Close();
         cmd.WaitForExit();
