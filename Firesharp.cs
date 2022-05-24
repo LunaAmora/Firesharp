@@ -1,4 +1,6 @@
-﻿namespace Firesharp;
+﻿global using static Firesharp.Types;
+
+namespace Firesharp;
 
 static partial class Firesharp
 {

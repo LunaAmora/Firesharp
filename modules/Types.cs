@@ -1,8 +1,8 @@
 namespace Firesharp;
 
-static partial class Firesharp
+static class Types
 {
-    struct Contract
+    public struct Contract
     {
         public List<DataType> inTypes = new ();
         public List<DataType> outTypes = new ();
@@ -14,7 +14,7 @@ static partial class Firesharp
         public Contract(DataType[] ins, DataType[] outs) : this(ins) => outTypes.AddRange(outs);
     }
 
-    struct Proc
+    public struct Proc
     {
         public Contract contract;
         public List<Op> procOps = new ();
@@ -23,7 +23,7 @@ static partial class Firesharp
         public Proc(Contract contract) => this.contract = contract;
     }
 
-    struct Loc
+    public struct Loc
     {
         public string file;
         public int line;
@@ -39,7 +39,7 @@ static partial class Firesharp
         public override string? ToString() => $"{file}:{line}:{col}:";
     }
 
-    struct Token
+    public struct Token
     {
         public string name;
         public Loc loc;
@@ -51,7 +51,7 @@ static partial class Firesharp
         }
     }
     
-    struct IRToken
+    public struct IRToken
     {
         public Loc Loc;
         public Enum Type;
@@ -63,13 +63,10 @@ static partial class Firesharp
             Loc = loc;
         }
         
-        public IRToken(Enum type, Token tok) : this(type, tok.loc) {}
         public IRToken(Enum type, int operand, Loc loc) : this(type, loc) => Operand = operand;
-        public IRToken(Enum type, int operand, Token tok) : this(type, tok.loc) => Operand = operand;
-
     }
     
-    struct Op 
+    public struct Op 
     {
         public Loc Loc;
         public OpType Type;
@@ -89,19 +86,7 @@ static partial class Firesharp
         }
     }
 
-    struct TypeLoc
-    {
-        public DataType Type;
-        public Loc Loc;
-
-        public TypeLoc(DataType type, Loc loc)
-        {
-            Type = type;
-            Loc = loc;
-        }
-    }
-
-    enum DataType
+    public enum DataType
     {
         _int,
         _bool,
@@ -111,13 +96,13 @@ static partial class Firesharp
         _any
     }
 
-    enum ArityType
+    public enum ArityType
     {
         any,
         same
     }
 
-    enum OpType
+    public enum OpType
     {
         push_int,
         push_bool,
@@ -133,7 +118,7 @@ static partial class Firesharp
         rot,
     }
 
-    enum IntrinsicType
+    public enum IntrinsicType
     {
         plus,
         minus,
@@ -142,7 +127,7 @@ static partial class Firesharp
         equal,
     }
 
-    enum KeywordType
+    public enum KeywordType
     {
         proc,
         _in,
