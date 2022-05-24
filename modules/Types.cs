@@ -51,6 +51,24 @@ static partial class Firesharp
         }
     }
     
+    struct IRToken
+    {
+        public Loc Loc;
+        public Enum Type;
+        public int Operand = 0;
+
+        public IRToken(Enum type, Loc loc)
+        {
+            Type = type;
+            Loc = loc;
+        }
+        
+        public IRToken(Enum type, Token tok) : this(type, tok.loc) {}
+        public IRToken(Enum type, int operand, Loc loc) : this(type, loc) => Operand = operand;
+        public IRToken(Enum type, int operand, Token tok) : this(type, tok.loc) => Operand = operand;
+
+    }
+    
     struct Op 
     {
         public Loc Loc;

@@ -7,7 +7,10 @@ static partial class Firesharp
         using(var reader = new StreamReader(file))
         {
             var lexer = new Lexer(reader, filepath);
-            while(lexer.ParseNextToken());
+            while(lexer.ParseNextToken() is IRToken token)
+            {
+                token.DefineOp();
+            }
         }
     }
 
@@ -75,33 +78,33 @@ static partial class Firesharp
         }
     }
 
-    static bool ParseNextToken(this ref Lexer lexer)
+    static IRToken? ParseNextToken(this ref Lexer lexer)
     {
+        IRToken? nextToken = null;
         if (lexer.NextToken(out Token tok))
         {
             if(TryParseNumber(tok.name, out int value))
             {
-                DefineOp(DataType._int, value, tok.loc);
+                nextToken = new IRToken(DataType._int, value, tok.loc);
             }
             else if(TryParseKeyword(tok.name, out KeywordType keyword))
             {
-                DefineOp(keyword, tok.loc);
+                nextToken = new IRToken(keyword, tok.loc);
             }
             else if(TryParseIntrinsic(tok.name, out IntrinsicType intrinsic))
             {
-                DefineOp(OpType.intrinsic, (int)intrinsic, tok.loc);
+                nextToken = new IRToken(OpType.intrinsic, (int)intrinsic, tok.loc);
             }
             else Error(tok.loc, $"could not parse the word `{tok.name}`");
-            return true;
         }
-        return false;
+        return nextToken;
     }
 
-    static bool TryParseNumber(string token, out int value) => Int32.TryParse(token, out value);
+    static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
 
-    static bool TryParseKeyword(string token, out KeywordType result)
+    static bool TryParseKeyword(string word, out KeywordType result)
     {
-        result = token switch
+        result = word switch
         {
             "dup"  => KeywordType.dup,
             "swap" => KeywordType.swap,
@@ -113,9 +116,9 @@ static partial class Firesharp
         return (int)result >= 0;
     }
 
-    static bool TryParseIntrinsic(string token, out IntrinsicType result)
+    static bool TryParseIntrinsic(string word, out IntrinsicType result)
     {
-        result = token switch
+        result = word switch
         {
             "+" => IntrinsicType.plus,
             "-" => IntrinsicType.minus,
@@ -127,19 +130,17 @@ static partial class Firesharp
         return (int)result >= 0;
     }
 
-    static bool DefineOp<t>(t token, Loc loc) where t : struct, Enum => DefineOp(token, 0, loc);
-    static bool DefineOp<t>(t token, int operand, Loc loc)
-        where t : struct, Enum => Assert(token switch
+    static bool DefineOp(this IRToken tok) => Assert(tok.Type switch
     {
-        OpType.intrinsic => RegisterOp(OpType.intrinsic, operand, loc),
-        DataType._int    => RegisterOp(OpType.push_int,  operand, loc),
-        KeywordType.dup  => RegisterOp(OpType.dup,  loc),
-        KeywordType.swap => RegisterOp(OpType.swap, loc),
-        KeywordType.drop => RegisterOp(OpType.drop, loc),
-        KeywordType.over => RegisterOp(OpType.over, loc),
-        KeywordType.rot  => RegisterOp(OpType.rot,  loc),
+        OpType.intrinsic => RegisterOp(OpType.intrinsic, tok.Operand, tok.Loc),
+        DataType._int    => RegisterOp(OpType.push_int,  tok.Operand, tok.Loc),
+        KeywordType.dup  => RegisterOp(OpType.dup,  tok.Loc),
+        KeywordType.swap => RegisterOp(OpType.swap, tok.Loc),
+        KeywordType.drop => RegisterOp(OpType.drop, tok.Loc),
+        KeywordType.over => RegisterOp(OpType.over, tok.Loc),
+        KeywordType.rot  => RegisterOp(OpType.rot,  tok.Loc),
         _ => -1
-    } >= 0, loc, $"could not define a op for the token `{token}`");
+    } >= 0, tok.Loc, $"could not define a op for the token `{tok.Type}`");
 
     static int RegisterOp(OpType type, Loc loc) => RegisterOp(type, 0, loc);
     static int RegisterOp(OpType type, int operand, Loc loc)
