@@ -49,15 +49,27 @@ static partial class Firesharp
     static string Error(string errorText) => Error($"[ERROR] {errorText}", -1);
     static string Error(Loc loc, string errorText) => Error($"{loc} [ERROR] {errorText}", -1);
 
+    static bool Assert(bool cond, string errorText)
+    {
+        if(!cond) Error(errorText);
+        return cond;
+    }
+
     static bool Assert(bool cond, Loc loc, string errorText)
     {
         if(!cond) Error(loc, errorText);
         return cond;
     }
 
-    static bool Assert(bool cond, string errorText)
+    static string Assert(bool cond, string successText, string errorText)
     {
-        if(!cond) Error(errorText);
-        return cond;
+        if(!cond) return Error(errorText);
+        else return successText;
+    }
+
+    static string Assert(bool cond, Loc loc, string successText, string errorText)
+    {
+        if(!cond) return Error(loc, errorText);
+        else return successText;
     }
 }
