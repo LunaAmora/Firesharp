@@ -36,6 +36,7 @@ static partial class Firesharp
             output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)");
 
             output.WriteLine("\n(func $start");
+
             program.ForEach(op => output.GenerateOp(op));
 
             output.WriteLine(")\n");
@@ -67,30 +68,33 @@ static partial class Firesharp
         Console.Write(cmd.StandardOutput.ReadToEnd());
     }
 
-    static bool TryWriteLine(this StreamWriter writer, (bool sucess, string text) str)
+    static bool TryWriteLine(this StreamWriter writer, string text)
     {
-        if (str.sucess) writer.WriteLine(str.text);
-        else            Error(str.text);
-        return str.sucess;
+        var success = text is string;
+        if (success) writer.WriteLine(text);
+        return success;
     }
 
-    static bool GenerateOp(this StreamWriter output, Op op) => output.TryWriteLine(op.Type switch
+    static bool GenerateOp(this StreamWriter output, Op op) 
     {
-        OpType.push_int  => (true, $"  i32.const {op.Operand}"),
-        OpType.push_bool => (true, $"  i32.const {op.Operand}"),
-        OpType.push_ptr  => (true, $"  i32.const {op.Operand}"),
-        OpType.over      => (true, "  call $over"),
-        OpType.swap      => (true, "  call $swap"),
-        OpType.dup       => (true, "  call $dup"),
-        OpType.rot       => (true, "  call $rot"),
-        OpType.drop      => (true, "  drop"),
-        OpType.intrinsic => (IntrinsicType)op.Operand switch
+        return output.TryWriteLine(op.Type switch
         {
-            IntrinsicType.plus  => (true, "  i32.add"),
-            IntrinsicType.minus => (true, "  i32.sub"),
-            IntrinsicType.equal => (true, "  i32.eq"),
-            _ => (false, $"Op type not implemented in generation: {(IntrinsicType)op.Operand}")
-        },
-        _ => (false, $"Op type not implemented in generation: {op.Type}")
-    });
+            OpType.push_int  => $"  i32.const {op.Operand}",
+            OpType.push_bool => $"  i32.const {op.Operand}",
+            OpType.push_ptr  => $"  i32.const {op.Operand}",
+            OpType.over      => "  call $over",
+            OpType.swap      => "  call $swap",
+            OpType.dup       => "  call $dup",
+            OpType.rot       => "  call $rot",
+            OpType.drop      => "  drop",
+            OpType.intrinsic => (IntrinsicType)op.Operand switch
+            {
+                IntrinsicType.plus  => "  i32.add",
+                IntrinsicType.minus => "  i32.sub",
+                IntrinsicType.equal => "  i32.eq",
+                _ => Error(op.Loc, $"Op type not implemented in generation: {(IntrinsicType)op.Operand}")
+            },
+            _ => Error(op.Loc, $"Op type not implemented in generation: {op.Type}")
+        });
+    }
 }

@@ -39,14 +39,15 @@ static partial class Firesharp
 
     static void Exit() => Environment.Exit(0);
 
-    static void Error(string errorText, int exitCode)
+    static string Error(string errorText, int exitCode)
     {
         Console.Error.WriteLine(errorText);
         Environment.Exit(exitCode);
+        return string.Empty;
     }
 
-    static void Error(string errorText) => Error($"[ERROR] {errorText}", -1);
-    static void Error(Loc loc, string errorText) => Error($"{loc} [ERROR] {errorText}", -1);
+    static string Error(string errorText) => Error($"[ERROR] {errorText}", -1);
+    static string Error(Loc loc, string errorText) => Error($"{loc} [ERROR] {errorText}", -1);
 
     static bool Assert(bool cond, Loc loc, string errorText)
     {
