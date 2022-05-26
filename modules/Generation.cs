@@ -36,11 +36,7 @@ static partial class Firesharp
             output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)");
 
             output.WriteLine("\n(func $start");
-
-            foreach (Op op in program)
-            {
-                GenerateOp(op, output);
-            }
+            program.ForEach(op => output.GenerateOp(op));
 
             output.WriteLine(")\n");
             output.WriteLine("(export \"_start\" (func $start))");
@@ -73,18 +69,12 @@ static partial class Firesharp
 
     static bool TryWriteLine(this StreamWriter writer, (bool sucess, string text) str)
     {
-        if (str.sucess)
-        {
-            writer.WriteLine(str.text);
-        }
-        else
-        {
-            Error(str.text);
-        }
+        if (str.sucess) writer.WriteLine(str.text);
+        else            Error(str.text);
         return str.sucess;
     }
 
-    static bool GenerateOp(Op op, StreamWriter output) => output.TryWriteLine(op.Type switch
+    static bool GenerateOp(this StreamWriter output, Op op) => output.TryWriteLine(op.Type switch
     {
         OpType.push_int  => (true, $"  i32.const {op.Operand}"),
         OpType.push_bool => (true, $"  i32.const {op.Operand}"),

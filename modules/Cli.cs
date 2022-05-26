@@ -50,19 +50,13 @@ static partial class Firesharp
 
     static bool Assert(bool cond, Loc loc, string errorText)
     {
-        if(!cond)
-        {
-            Error(loc, errorText);
-        }
+        if(!cond) Error(loc, errorText);
         return cond;
     }
 
     static bool Assert(bool cond, string errorText)
     {
-        if(!cond)
-        {
-            Error(errorText);
-        }
+        if(!cond) Error(errorText);
         return cond;
     }
 }

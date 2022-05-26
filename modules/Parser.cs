@@ -46,10 +46,7 @@ static partial class Firesharp
 
         public void AdvanceByPredicate(Predicate<char> pred)
         {
-            while(buffer.Length > parserPos && !pred(buffer[parserPos]))
-            {
-                parserPos++;
-            }
+            while(buffer.Length > parserPos && !pred(buffer[parserPos])) parserPos++;
         }
 
         public string ReadByPredicate(Predicate<char> pred)
@@ -111,7 +108,7 @@ static partial class Firesharp
             "rot"  => KeywordType.rot,
             _ => (KeywordType)(-1)
         };
-        return (int)result >= 0;
+        return result >= 0;
     }
 
     static bool TryParseIntrinsic(string word, out IntrinsicType result)
@@ -125,7 +122,7 @@ static partial class Firesharp
             "=" => IntrinsicType.equal,
             _ => (IntrinsicType)(-1)
         };
-        return (int)result >= 0;
+        return result >= 0;
     }
 
     static bool DefineOp(this IRToken tok) => Assert(tok.Type switch

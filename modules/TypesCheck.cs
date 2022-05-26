@@ -8,10 +8,7 @@ static partial class Firesharp
 
     static void TypeCheck(List<Op> program)
     {
-        foreach (Op op in program)
-        {
-            TypeCheckOp(op)();
-        }
+        foreach (Op op in program) TypeCheckOp(op)();
     }
 
     static Action TypeCheckOp(Op op)  => op.Type switch
@@ -121,10 +118,7 @@ static partial class Firesharp
         var first = stack.ElementAt(0).type;
         for (int i = 0; i < arityN - 1; ++i)
         {
-            if (!first.Equals(stack.ElementAt(i).type))
-            {
-                return false;
-            }
+            if (!first.Equals(stack.ElementAt(i).type)) return false;
         }
         return true;
     }
