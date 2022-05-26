@@ -106,6 +106,8 @@ static partial class Firesharp
             "drop" => KeywordType.drop,
             "over" => KeywordType.over,
             "rot"  => KeywordType.rot,
+            "if"   => KeywordType._if,
+            "end"  => KeywordType.end,
             _ => (KeywordType)(-1)
         };
         return result >= 0;
@@ -134,6 +136,12 @@ static partial class Firesharp
         KeywordType.drop => RegisterOp(OpType.drop, tok.Loc),
         KeywordType.over => RegisterOp(OpType.over, tok.Loc),
         KeywordType.rot  => RegisterOp(OpType.rot,  tok.Loc),
+        KeywordType._if  => PushBlock(RegisterOp(OpType.if_start, tok.Loc)),
+        KeywordType.end  => PopBlock(tok.Loc) switch
+        {
+            OpType.if_start => RegisterOp(OpType.end_if, tok.Loc),
+            _ => -1
+        },
         _ => -1
     } >= 0, tok.Loc, $"could not define a op for the token `{tok.Type}`");
 
@@ -142,5 +150,19 @@ static partial class Firesharp
     {
         program.Add(new (type, operand, loc));
         return program.Count() - 1;
+    }
+
+    static Stack<int> OpBlock = new ();
+
+    static int PushBlock(int op)
+    {
+        OpBlock.Push(op);
+        return op;
+    }
+
+    static OpType PopBlock(Loc loc)
+    {
+        Assert(OpBlock.Count > 0, loc, "there are no open blocks to close with `end`");
+        return program[OpBlock.Pop()].Type;
     }
 }

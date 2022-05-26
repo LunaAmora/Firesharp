@@ -83,6 +83,8 @@ static partial class Firesharp
         OpType.dup       => "  call $dup",
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
+        OpType.if_start  => "  if",
+        OpType.end_if    => "  end",
         OpType.intrinsic => (IntrinsicType)op.Operand switch
         {
             IntrinsicType.plus  => "  i32.add",

@@ -55,17 +55,25 @@ static partial class Firesharp
             dataStack.Push(A);
             dataStack.Push(B);
         },
+        OpType.if_start => () =>
+        {
+            dataStack.ExpectArityType(1, DataType._bool, op.Loc);
+            dataStack.Pop();
+        },
+        OpType.end_if => () => {},
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
             IntrinsicType.plus => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
+                dataStack.Push(new (dataStack.Pop().type, op.Loc));
             },
             IntrinsicType.minus => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
+                dataStack.Push(new (dataStack.Pop().type, op.Loc));
             },
             IntrinsicType.equal => () =>
             {
@@ -108,17 +116,27 @@ static partial class Firesharp
         Assert(arityT switch
         {
             ArityType.any  => true,
-            ArityType.same => ExpectSame(stack, arityN),
+            ArityType.same => ExpectSame(stack, arityN, loc),
             _ => false
         }, loc, "Arity check failled");
     }
 
-    static bool ExpectSame(DataStack stack, int arityN)
+    static bool ExpectSame(this DataStack stack, int arityN, Loc loc)
     {
         var first = stack.ElementAt(0).type;
-        for (int i = 0; i < arityN - 1; ++i)
+        return ExpectArityType(stack, arityN, first, loc);
+    }
+
+    static bool ExpectArityType(this DataStack stack, int arityN, DataType type, Loc loc)
+    {
+        for (int i = 0; i < arityN; i++)
         {
-            if (!first.Equals(stack.ElementAt(i).type)) return false;
+            var a = stack.ElementAt(i);
+            if (!type.Equals(a.type)) 
+            {
+                Error(loc, $"expected type `{type}`, but found `{a.type}`\n{a.loc} [INFO]  the type found was declared here");
+                return false;
+            }
         }
         return true;
     }

@@ -116,6 +116,8 @@ static class Types
         swap,
         over,
         rot,
+        if_start,
+        end_if,
     }
 
     public enum IntrinsicType
@@ -129,6 +131,7 @@ static class Types
 
     public enum KeywordType
     {
+        _if,
         proc,
         _in,
         end,
