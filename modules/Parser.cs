@@ -34,10 +34,13 @@ static partial class Firesharp
         {
             if (stream.ReadLine() is string line)
             {
+                lineNum++;
+                if(string.IsNullOrWhiteSpace(line)) return(ReadLine());
+                
                 buffer = line.AsSpan();
                 colNum = 0;
                 parserPos = 0;
-                lineNum++;
+                TrimLeft();
                 return true;
             }
             buffer = ReadOnlySpan<char>.Empty;
@@ -55,21 +58,28 @@ static partial class Firesharp
             return buffer.Slice(colNum, parserPos - colNum).ToString();
         }
 
-        public void TrimLeft()
+        public bool TrimLeft()
         {
-            AdvanceByPredicate(pred => pred != ' ');
-            colNum = parserPos;
+            if(buffer.Slice(parserPos).Trim().IsEmpty)
+            {
+                return ReadLine();
+            }
+            else
+            {
+                AdvanceByPredicate(pred => pred != ' ');
+                colNum = parserPos;
+                return true;
+            }
         }
 
         public bool NextToken(out Token token)
         {
-            if ((buffer.IsEmpty || parserPos >= buffer.Length - 1) && !ReadLine())
+            if (!TrimLeft())
             {
                 token = default;
                 return false;
             }
 
-            TrimLeft();
             token = new (ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
             return true;
         }

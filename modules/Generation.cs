@@ -70,7 +70,7 @@ static partial class Firesharp
 
     static void TryWriteLines(this StreamWriter writer, string text)
     {
-        if (!text.Equals(string.Empty)) writer.WriteLine(text);
+        if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
     }
 
     static string GenerateOp(Op op) => op.Type switch
