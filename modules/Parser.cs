@@ -80,25 +80,23 @@ static partial class Firesharp
 
     static IRToken? ParseNextToken(this ref Lexer lexer)
     {
-        IRToken? nextToken = null;
-        if (lexer.NextToken(out Token tok))
-        {
-            if(TryParseNumber(tok.name, out int value))
-            {
-                nextToken = new (DataType._int, value, tok.loc);
-            }
-            else if(TryParseKeyword(tok.name, out KeywordType keyword))
-            {
-                nextToken = new (keyword, tok.loc);
-            }
-            else if(TryParseIntrinsic(tok.name, out IntrinsicType intrinsic))
-            {
-                nextToken = new (OpType.intrinsic, (int)intrinsic, tok.loc);
-            }
-            else Error(tok.loc, $"could not parse the word `{tok.name}`");
-        }
-        return nextToken;
+        (Action? error, IRToken? tok) = lexer.TryParseNextToken();
+        if (tok is not IRToken && error is Action) error();
+        return tok;
     }
+
+    static (Action? error, IRToken? token) TryParseNextToken(this ref Lexer lexer) => lexer.NextToken(out Token tok) switch
+    {
+        false 
+            => (null, null),
+        _ when TryParseNumber   (tok.name, out int value)
+            => (null, new (DataType._int, value, tok.loc)),
+        _ when TryParseKeyword  (tok.name, out KeywordType keyword)
+            => (null, new (keyword, tok.loc)),
+        _ when TryParseIntrinsic(tok.name, out IntrinsicType intrinsic)
+            => (null, new (OpType.intrinsic, (int)intrinsic, tok.loc)),
+        _ => (() => Error(tok.loc, $"could not parse the word `{tok.name}`"), null)
+    };
 
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
 
