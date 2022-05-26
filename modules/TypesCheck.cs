@@ -87,7 +87,7 @@ static partial class Firesharp
             TypeCheck(proc.procOps);
             Error(op.Loc, "OpType.call outputs are not typechecked yet");
         },
-        _ => () => Error(op.Loc, $"Op type not implemented in typechecking: {op.Type.ToString()}")
+        _ => () => Error(op.Loc, $"Op type not implemented in typechecking: {op.Type}")
     };
 
     static void ExpectArity(this DataStack stack, Contract contract, Loc loc)

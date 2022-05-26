@@ -99,8 +99,8 @@ static partial class Firesharp
             IntrinsicType.plus  => (true, "  i32.add"),
             IntrinsicType.minus => (true, "  i32.sub"),
             IntrinsicType.equal => (true, "  i32.eq"),
-            _ => (false, $"Op type not implemented in generation: {op.Type.ToString()}")
+            _ => (false, $"Op type not implemented in generation: {(IntrinsicType)op.Operand}")
         },
-        _ => (false, $"Op type not implemented in generation: {op.Type.ToString()}")
+        _ => (false, $"Op type not implemented in generation: {op.Type}")
     });
 }
