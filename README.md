@@ -1,9 +1,10 @@
 # Firesharp
 
-An experiment on programming language development using C#, that is:
+__Firesharp__ is an experimental programming language being developed in C# that is:
 - Stack based
 - Concatenative
 - Compiled to WASM
+- Heavily inspired by [Porth](https://gitlab.com/tsoding/porth).
 
 ### Quickstart (only functional on linux yet)
 
