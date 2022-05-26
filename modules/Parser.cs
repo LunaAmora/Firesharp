@@ -60,21 +60,16 @@ static partial class Firesharp
 
         public bool TrimLeft()
         {
-            if(buffer.Slice(parserPos).Trim().IsEmpty)
-            {
-                return ReadLine();
-            }
-            else
-            {
-                AdvanceByPredicate(pred => pred != ' ');
-                colNum = parserPos;
-                return true;
-            }
+            if(buffer.Slice(parserPos).Trim().IsEmpty) return false;
+            
+            AdvanceByPredicate(pred => pred != ' ');
+            colNum = parserPos;
+            return true;
         }
 
         public bool NextToken(out Token token)
         {
-            if (!TrimLeft())
+            if (!TrimLeft() && !ReadLine())
             {
                 token = default;
                 return false;
