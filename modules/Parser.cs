@@ -150,14 +150,15 @@ static partial class Firesharp
         KeywordType.over  => new (OpType.over, tok.Loc),
         KeywordType.rot   => new (OpType.rot,  tok.Loc),
         KeywordType._if   => PushBlock(new (OpType.if_start, tok.Loc)),
-        KeywordType._else => PeekBlock(tok.Loc) switch
+        KeywordType._else => PopBlock(tok.Loc) switch
         {
-            {Type: OpType.if_start} => new (OpType._else, tok.Loc),
+            {Type: OpType.if_start} => PushBlock(new (OpType._else, tok.Loc)),
             _ => null
         },
         KeywordType.end   => PopBlock(tok.Loc) switch
         {
             {Type: OpType.if_start} => new (OpType.end_if, tok.Loc),
+            {Type: OpType._else}    => new (OpType.end_else, tok.Loc),
             _ => null
         },
         _ => null

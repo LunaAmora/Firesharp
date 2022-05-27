@@ -85,7 +85,8 @@ static partial class Firesharp
         OpType.drop      => "  drop",
         OpType.if_start  => "  if",
         OpType._else     => "  else",
-        OpType.end_if    => "  end",
+        OpType.end_if    or 
+        OpType.end_else  => "  end",
         OpType.intrinsic => (IntrinsicType)op.Operand switch
         {
             IntrinsicType.plus  => "  i32.add",

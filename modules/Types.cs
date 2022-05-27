@@ -106,6 +106,7 @@ static partial class Firesharp
         if_start,
         _else,
         end_if,
+        end_else,
     }
 
     enum IntrinsicType

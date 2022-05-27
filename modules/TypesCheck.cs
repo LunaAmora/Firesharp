@@ -5,6 +5,7 @@ using DataStack = Stack<(DataType type, Loc loc)>;
 static partial class Firesharp
 {
     static DataStack dataStack = new ();
+    static Stack<DataStack> blockStack = new ();
 
     static void TypeCheck(List<Op> program)
     {
@@ -59,9 +60,20 @@ static partial class Firesharp
         {
             dataStack.ExpectArityType(1, DataType._bool, op.Loc);
             dataStack.Pop();
+            blockStack.Push(new (dataStack));
         },
         OpType._else => () => {},
-        OpType.end_if => () => {},
+        OpType.end_if => () => 
+        {
+            var snapshot = blockStack.Pop().Select(element => element.type).ToList();
+            var current  = dataStack.Select(element => element.type).ToList();
+            var check = Enumerable.SequenceEqual(snapshot, current);
+            Assert(check, op.Loc, "else-less if block is not allowed to alter the types of the arguments on the data stack");
+        },
+        OpType.end_else => () =>
+        {
+
+        },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
             IntrinsicType.plus => () =>
