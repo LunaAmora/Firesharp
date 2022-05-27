@@ -1,4 +1,4 @@
-﻿global using static Firesharp.Types;
+﻿global using static Firesharp.Firesharp;
 
 namespace Firesharp;
 

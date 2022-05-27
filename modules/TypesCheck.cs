@@ -112,7 +112,7 @@ static partial class Firesharp
             var a = stack.ElementAt(i);
             if (!type.Equals(a.type)) 
             {
-                Error(loc, $"expected type `{type}`, but found `{a.type}`\n{a.loc} [INFO]  the type found was declared here");
+                Error(loc, $"expected type `{DataTypeName(type)}`, but found `{DataTypeName(a.type)}`\n{a.loc} [INFO]  the type found was declared here");
                 return false;
             }
         }

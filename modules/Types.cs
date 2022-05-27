@@ -1,6 +1,6 @@
 namespace Firesharp;
 
-static class Types
+static partial class Firesharp
 {
     public struct Loc
     {
@@ -18,7 +18,26 @@ static class Types
         public override string? ToString() => $"{file}:{line}:{col}:";
     }
 
-    public struct Token
+    public enum DataType
+    {
+        _int,
+        _bool,
+        _str,
+        _cstr,
+        _ptr
+    }
+
+    static string DataTypeName(this DataType type) => type switch
+    {
+        DataType._int  => "Integer",
+        DataType._bool => "Boolean",
+        DataType._str  => "String",
+        DataType._cstr => "C-style String",
+        DataType._ptr  => "Pointer",
+        _ => Error($"dataType name not implemented: {type}")
+    };
+
+    struct Token
     {
         public string name;
         public Loc loc;
@@ -30,7 +49,7 @@ static class Types
         }
     }
     
-    public struct IRToken
+    struct IRToken
     {
         public Loc Loc;
         public Enum Type;
@@ -45,7 +64,7 @@ static class Types
         public IRToken(Enum type, int operand, Loc loc) : this(type, loc) => Operand = operand;
     }
     
-    public struct Op 
+    struct Op 
     {
         public Loc Loc;
         public OpType Type;
@@ -65,23 +84,13 @@ static class Types
         }
     }
 
-    public enum DataType
-    {
-        _int,
-        _bool,
-        _str,
-        _cstr,
-        _ptr,
-        _any
-    }
-
-    public enum ArityType
+    enum ArityType
     {
         any,
         same
     }
 
-    public enum OpType
+    enum OpType
     {
         push_int,
         push_bool,
@@ -99,7 +108,7 @@ static class Types
         end_if,
     }
 
-    public enum IntrinsicType
+    enum IntrinsicType
     {
         plus,
         minus,
@@ -108,7 +117,7 @@ static class Types
         equal,
     }
 
-    public enum KeywordType
+    enum KeywordType
     {
         _if,
         _else,
