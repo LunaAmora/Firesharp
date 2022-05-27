@@ -28,48 +28,43 @@ static partial class Firesharp
                     }
                     catch(System.IO.FileNotFoundException)
                     {
-                        Error($"file not found `{args[i-1]}`");
+                        Error($"File not found `{args[i-1]}`");
                     }
                     return;
                 }
-                default: Error($"unknown subcommand `{args[i-1]}`"); return;
+                default: Error($"Unknown subcommand `{args[i-1]}`"); return;
             }
         }
     }
 
     static void Exit() => Environment.Exit(0);
 
-    static string Error(string errorText, int exitCode)
+    static string Error(int exitCode, params string[] errorText)
     {
-        Console.Error.WriteLine(errorText);
+        if(errorText is string[] errors)
+        {
+            foreach(var error in errors)
+            {
+                Console.Error.WriteLine(error);
+            }
+        }
+        
         Environment.Exit(exitCode);
         return string.Empty;
     }
 
-    static string Error(string errorText) => Error($"[ERROR] {errorText}", -1);
-    static string Error(Loc loc, string errorText) => Error($"{loc} [ERROR] {errorText}", -1);
+    static string Error(params string[] errorText) => Error(-1, $"[ERROR] {string.Join("\n", errorText)}");
+    static string Error(Loc loc, params string[] errorText) => Error(-1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
 
-    static bool Assert(bool cond, string errorText)
+    static bool Assert(bool cond, params string[] errorText)
     {
         if(!cond) Error(errorText);
         return cond;
     }
 
-    static bool Assert(bool cond, Loc loc, string errorText)
+    static bool Assert(bool cond, Loc loc, params string[] errorText)
     {
         if(!cond) Error(loc, errorText);
         return cond;
-    }
-
-    static string Assert(bool cond, string successText, string errorText)
-    {
-        if(!cond) return Error(errorText);
-        else return successText;
-    }
-
-    static string Assert(bool cond, Loc loc, string successText, string errorText)
-    {
-        if(!cond) return Error(loc, errorText);
-        else return successText;
     }
 }

@@ -15,7 +15,7 @@ static partial class Firesharp
             col = colNum;
         }
 
-        public override string? ToString() => $"{file}:{line}:{col}:";
+        public override string ToString() => $"{file}:{line}:{col}:";
     }
 
     public enum DataType
@@ -34,7 +34,7 @@ static partial class Firesharp
         DataType._str  => "String",
         DataType._cstr => "C-style String",
         DataType._ptr  => "Pointer",
-        _ => Error($"dataType name not implemented: {type}")
+        _ => Error($"DataType name not implemented: {type}")
     };
 
     static string ListTypes(this List<DataType> types)

@@ -64,23 +64,33 @@ static partial class Firesharp
         },
         OpType._else => () =>
         {
-            var oldStack = blockStack.Pop();
+            var oldStack = blockStack.Peek();
             blockStack.Push(new (dataStack));
             dataStack = new (oldStack);
         },
-        OpType.end_if   or 
+        OpType.end_if => () =>
+        {
+            var snapshot = blockStack.Pop().Select(element => element.type).ToList();
+            var current  = dataStack.Select(element => element.type).ToList();
+            var check = Enumerable.SequenceEqual(snapshot, current);
+
+            Assert(check, op.Loc,
+            $"Else-less if block is not allowed to alter the types of the arguments on the data stack",
+            $"{op.Loc} [NOTE] Expected types: {ListTypes(snapshot)}",
+            $"{op.Loc} [NOTE] Actual types:   {ListTypes(current)}");
+        },
         OpType.end_else => () =>
         {
             var snapshot = blockStack.Pop().Select(element => element.type).ToList();
             var current  = dataStack.Select(element => element.type).ToList();
             var check = Enumerable.SequenceEqual(snapshot, current);
 
-            Assert(check, op.Loc, op.Type switch
-            {
-                OpType.end_if   => "else-less if block is not allowed to alter the types of the arguments on the data stack",
-                OpType.end_else => "both branches of the if-block must produce the same types of the arguments on the data stack",
-                _ => "unreachable"
-            } + $"\n[NOTE] Expected types: {ListTypes(snapshot)}\n[NOTE] Actual types:   {ListTypes(current)}");
+            Assert(check, op.Loc,
+            $"Both branches of the if-block must produce the same types of the arguments on the data stack",
+            $"{op.Loc} [NOTE] Expected types: {ListTypes(snapshot)}",
+            $"{op.Loc} [NOTE] Actual types:   {ListTypes(current)}");
+
+            var oldStack = blockStack.Pop();
         },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
@@ -103,7 +113,7 @@ static partial class Firesharp
                 dataStack.Pop();
                 dataStack.Push((DataType._bool, op.Loc));
             },
-            _ => (Action) (() => Error(op.Loc, $"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
+            _ => (Action) (() => Error(op.Loc, $"Intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
         _ => () => Error(op.Loc, $"Op type not implemented in typechecking: {op.Type}")
     };
@@ -132,7 +142,8 @@ static partial class Firesharp
             var a = stack.ElementAt(i);
             if (!type.Equals(a.type)) 
             {
-                Error(loc, $"expected type `{DataTypeName(type)}`, but found `{DataTypeName(a.type)}`\n{a.loc} [INFO]  the type found was declared here");
+                Error(loc, $"Expected type `{DataTypeName(type)}`, but found `{DataTypeName(a.type)}`",
+                    $"{a.loc} [INFO] The type found was declared here");
                 return false;
             }
         }

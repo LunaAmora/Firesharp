@@ -104,7 +104,7 @@ static partial class Firesharp
             => (null, new (keyword, tok.loc)),
         _ when TryParseIntrinsic(tok.name, out IntrinsicType intrinsic)
             => (null, new (OpType.intrinsic, (int)intrinsic, tok.loc)),
-        _ => (() => Error(tok.loc, $"could not parse the word `{tok.name}`"), null)
+        _ => (() => Error(tok.loc, $"Could not parse the word `{tok.name}`"), null)
     };
 
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
