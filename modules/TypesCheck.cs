@@ -62,17 +62,25 @@ static partial class Firesharp
             dataStack.Pop();
             blockStack.Push(new (dataStack));
         },
-        OpType._else => () => {},
-        OpType.end_if => () => 
+        OpType._else => () =>
+        {
+            var oldStack = blockStack.Pop();
+            blockStack.Push(new (dataStack));
+            dataStack = new (oldStack);
+        },
+        OpType.end_if   or 
+        OpType.end_else => () =>
         {
             var snapshot = blockStack.Pop().Select(element => element.type).ToList();
             var current  = dataStack.Select(element => element.type).ToList();
             var check = Enumerable.SequenceEqual(snapshot, current);
-            Assert(check, op.Loc, "else-less if block is not allowed to alter the types of the arguments on the data stack");
-        },
-        OpType.end_else => () =>
-        {
 
+            Assert(check, op.Loc, op.Type switch
+            {
+                OpType.end_if   => "else-less if block is not allowed to alter the types of the arguments on the data stack",
+                OpType.end_else => "both branches of the if-block must produce the same types of the arguments on the data stack",
+                _ => "unreachable"
+            } + $"\n[NOTE] Expected types: {ListTypes(snapshot)}\n[NOTE] Actual types:   {ListTypes(current)}");
         },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {

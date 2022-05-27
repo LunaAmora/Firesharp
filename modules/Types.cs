@@ -37,6 +37,11 @@ static partial class Firesharp
         _ => Error($"dataType name not implemented: {type}")
     };
 
+    static string ListTypes(this List<DataType> types)
+    {
+        return $"[{string.Join(',', types.Select(typ => $"<{DataTypeName(typ)}>").ToList())}]";
+    }
+
     struct Token
     {
         public string name;
