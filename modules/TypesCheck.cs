@@ -85,31 +85,8 @@ static partial class Firesharp
             },
             _ => (Action) (() => Error(op.Loc, $"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
-        OpType.call => () =>
-        {
-            Assert(procList.Count > op.Operand, op.Loc, "Proclist does not contain the needed proc id");
-            Proc proc = procList.ElementAt(op.Operand);
-            dataStack.ExpectArity(proc.contract, op.Loc);
-            TypeCheck(proc.procOps);
-            Error(op.Loc, "OpType.call outputs are not typechecked yet");
-        },
         _ => () => Error(op.Loc, $"Op type not implemented in typechecking: {op.Type}")
     };
-
-    static void ExpectArity(this DataStack stack, Contract contract, Loc loc)
-    {
-        int count = contract.inTypes.Count() - 1;
-        Assert(stack.Count > count, loc, "Stack has less elements than expected");
-
-        for (int i = 0; i <= count; i++)
-        {
-            if (!stack.ElementAt(i).type.Equals(contract.inTypes[count - i]))
-            {
-                Error(loc, "Arity check failled");
-                return;
-            }
-        }
-    }
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)
     {

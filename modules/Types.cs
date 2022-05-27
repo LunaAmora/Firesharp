@@ -2,27 +2,6 @@ namespace Firesharp;
 
 static class Types
 {
-    public struct Contract
-    {
-        public List<DataType> inTypes = new ();
-        public List<DataType> outTypes = new ();
-        
-        public Contract(List<DataType> ins) => inTypes = ins;
-        public Contract(params DataType[] ins) => inTypes.AddRange(ins);
-
-        public Contract(List<DataType> ins, List<DataType> outs) : this(ins) => outTypes = outs;
-        public Contract(DataType[] ins, DataType[] outs) : this(ins) => outTypes.AddRange(outs);
-    }
-
-    public struct Proc
-    {
-        public Contract contract;
-        public List<Op> procOps = new ();
-
-        public Proc() => contract = default;
-        public Proc(Contract contract) => this.contract = contract;
-    }
-
     public struct Loc
     {
         public string file;
@@ -110,7 +89,6 @@ static class Types
         push_str,
         push_cstr,
         intrinsic,
-        call,
         dup,
         drop,
         swap,
