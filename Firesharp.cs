@@ -1,4 +1,5 @@
 ﻿global using static Firesharp.Firesharp;
+global using System.Text;
 
 namespace Firesharp;
 

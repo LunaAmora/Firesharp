@@ -83,7 +83,7 @@ static partial class Firesharp
         OpType.dup       => "  call $dup",
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
-        OpType.if_start  => "  if",
+        OpType.if_start  => "  if".AppendContract(op),
         OpType._else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
@@ -96,4 +96,26 @@ static partial class Firesharp
         },
         _ => Error(op.Loc, $"Op type not implemented in generation: {op.Type}")
     };
+
+    static string AppendContract(this string str, Op op)
+    {
+        if(BlockContacts.ContainsKey(op) && BlockContacts[op] is (int ins, int outs) contract)
+        {
+            var sb = new StringBuilder(str);
+            if (ins > 0)
+            {
+                sb.Append(" (param");
+                sb.Insert(sb.Length, " i32", ins);
+                sb.Append(")");
+            }
+            if (outs > 0)
+            {
+                sb.Append(" (result");
+                sb.Insert(sb.Length, " i32", outs);
+                sb.Append(")");
+            }
+            return sb.ToString();
+        }
+        return str;
+    }
 }

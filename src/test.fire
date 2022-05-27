@@ -1,5 +1,8 @@
-34 35 dup rot + drop
+34 35 dup  rot  + drop
 29 40 over swap + drop
-+ 64 = if
+64 = if
+    drop 4 5 6
 else
+    420 69
 end
+drop drop drop

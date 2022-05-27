@@ -1,15 +1,18 @@
 namespace Firesharp;
 
 using DataStack = Stack<(DataType type, Loc loc)>;
+using BlockStack = Stack<(Stack<(DataType type, Loc loc)> stack, Op op)>;
 
 static partial class Firesharp
 {
     static DataStack dataStack = new ();
-    static Stack<DataStack> blockStack = new ();
+    static BlockStack blockStack = new (); //TODO: This method of snapshothing the datastack is really dumb, change later
+    static Dictionary<Op, (int, int)> BlockContacts = new ();
 
     static void TypeCheck(List<Op> program)
     {
         foreach (Op op in program) TypeCheckOp(op)();
+        dataStack.ExpectStackEmpty();
     }
 
     static Action TypeCheckOp(Op op)  => op.Type switch
@@ -60,37 +63,34 @@ static partial class Firesharp
         {
             dataStack.ExpectArityType(1, DataType._bool, op.Loc);
             dataStack.Pop();
-            blockStack.Push(new (dataStack));
+            blockStack.Push((new (dataStack), op));
         },
         OpType._else => () =>
         {
-            var oldStack = blockStack.Peek();
-            blockStack.Push(new (dataStack));
+            (var oldStack, var startOp) = blockStack.Peek();
+            blockStack.Push((new (dataStack), startOp));
             dataStack = new (oldStack);
         },
         OpType.end_if => () =>
         {
-            var snapshot = blockStack.Pop().Select(element => element.type).ToList();
-            var current  = dataStack.Select(element => element.type).ToList();
-            var check = Enumerable.SequenceEqual(snapshot, current);
-
-            Assert(check, op.Loc,
-            $"Else-less if block is not allowed to alter the types of the arguments on the data stack",
-            $"{op.Loc} [NOTE] Expected types: {ListTypes(snapshot)}",
-            $"{op.Loc} [NOTE] Actual types:   {ListTypes(current)}");
+            var expected = blockStack.Pop().stack;
+            
+            ExpectStackArity(expected, dataStack, op.Loc, 
+            $"Else-less if block is not allowed to alter the types of the arguments on the data stack");
         },
         OpType.end_else => () =>
         {
-            var snapshot = blockStack.Pop().Select(element => element.type).ToList();
-            var current  = dataStack.Select(element => element.type).ToList();
-            var check = Enumerable.SequenceEqual(snapshot, current);
+            var expected = blockStack.Pop().stack;
 
-            Assert(check, op.Loc,
-            $"Both branches of the if-block must produce the same types of the arguments on the data stack",
-            $"{op.Loc} [NOTE] Expected types: {ListTypes(snapshot)}",
-            $"{op.Loc} [NOTE] Actual types:   {ListTypes(current)}");
+            ExpectStackArity(expected, dataStack, op.Loc, 
+            $"Both branches of the if-block must produce the same types of the arguments on the data stack");
 
-            var oldStack = blockStack.Pop();
+            (var oldStack, var startOp) = blockStack.Pop();
+
+            var blockImput  = oldStack.Except(expected).Count();
+            var blockOutput = expected.Except(oldStack).Count();
+
+            BlockContacts.Add(startOp, (blockImput, blockOutput));
         },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
@@ -148,5 +148,34 @@ static partial class Firesharp
             }
         }
         return true;
+    }
+
+    static bool ExpectStackEmpty(this DataStack stack)
+    {
+        return Assert(stack.Count() == 0, 
+        "Expected stack to be empty at the end of the program, but found:",
+        $"[INFO] Found types: {ListTypes(stack, true)}");
+    }
+
+    static bool ExpectStackArity(DataStack expected, DataStack actual, Loc loc, string errorText)
+    {
+        var check = Enumerable.SequenceEqual(expected.Select(a => a.type), actual.Select(a => a.type));
+        return Assert(check, loc, errorText,
+            $"{loc} [INFO] Expected types: {ListTypes(expected)}",
+            $"{loc} [INFO] Actual types:   {ListTypes(actual)}");
+    }
+
+    static string ListTypes(this DataStack types) => dataStack.ListTypes(false);
+    static string ListTypes(this DataStack types, bool verbose)
+    {
+        var sb = new StringBuilder("[");
+        sb.AppendJoin(',',  types.Select(t => $"<{DataTypeName(t.type)}>"));
+        sb.Append("]");
+        if (verbose)
+        {
+            sb.Append("\n");
+            sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{DataTypeName(t.type)}` was declared here"));
+        }
+        return sb.ToString();
     }
 }

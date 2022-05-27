@@ -37,11 +37,6 @@ static partial class Firesharp
         _ => Error($"DataType name not implemented: {type}")
     };
 
-    static string ListTypes(this List<DataType> types)
-    {
-        return $"[{string.Join(',', types.Select(typ => $"<{DataTypeName(typ)}>").ToList())}]";
-    }
-
     struct Token
     {
         public string name;
@@ -69,7 +64,7 @@ static partial class Firesharp
         public IRToken(Enum type, int operand, Loc loc) : this(type, loc) => Operand = operand;
     }
     
-    struct Op 
+    public struct Op 
     {
         public Loc Loc;
         public OpType Type;
@@ -95,7 +90,7 @@ static partial class Firesharp
         same
     }
 
-    enum OpType
+    public enum OpType
     {
         push_int,
         push_bool,
