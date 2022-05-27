@@ -34,7 +34,7 @@ static partial class Firesharp
         OpType.dup => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.Loc);
-            dataStack.Push(dataStack.Peek());
+            dataStack.Push((dataStack.Peek().type, op.Loc));
         },
         OpType.rot => () =>
         {
@@ -60,6 +60,7 @@ static partial class Firesharp
             dataStack.ExpectArityType(1, DataType._bool, op.Loc);
             dataStack.Pop();
         },
+        OpType._else => () => {},
         OpType.end_if => () => {},
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
@@ -67,20 +68,20 @@ static partial class Firesharp
             {
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
-                dataStack.Push(new (dataStack.Pop().type, op.Loc));
+                dataStack.Push((dataStack.Pop().type, op.Loc));
             },
             IntrinsicType.minus => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
-                dataStack.Push(new (dataStack.Pop().type, op.Loc));
+                dataStack.Push((dataStack.Pop().type, op.Loc));
             },
             IntrinsicType.equal => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push(new (DataType._bool, op.Loc));
+                dataStack.Push((DataType._bool, op.Loc));
             },
             _ => (Action) (() => Error(op.Loc, $"intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),

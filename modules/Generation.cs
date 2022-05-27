@@ -37,7 +37,7 @@ static partial class Firesharp
 
             output.WriteLine("\n(func $start");
 
-            program.ForEach(op => output.TryWriteLines(GenerateOp(op)));
+            program.ForEach(op => output.TryWriteLine(GenerateOp(op)));
 
             output.WriteLine(")\n");
             output.WriteLine("(export \"_start\" (func $start))");
@@ -68,7 +68,7 @@ static partial class Firesharp
         Console.Write(cmd.StandardOutput.ReadToEnd());
     }
 
-    static void TryWriteLines(this StreamWriter writer, string text)
+    static void TryWriteLine(this StreamWriter writer, string text)
     {
         if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
     }
@@ -84,6 +84,7 @@ static partial class Firesharp
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
         OpType.if_start  => "  if",
+        OpType._else     => "  else",
         OpType.end_if    => "  end",
         OpType.intrinsic => (IntrinsicType)op.Operand switch
         {

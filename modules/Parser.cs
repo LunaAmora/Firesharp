@@ -112,6 +112,7 @@ static partial class Firesharp
             "over" => KeywordType.over,
             "rot"  => KeywordType.rot,
             "if"   => KeywordType._if,
+            "else" => KeywordType._else,
             "end"  => KeywordType.end,
             _ => (KeywordType)(-1)
         };
@@ -134,40 +135,52 @@ static partial class Firesharp
 
     static bool DefineOp(this IRToken tok) => Assert(tok.Type switch
     {
-        OpType.intrinsic => RegisterOp(OpType.intrinsic, tok.Operand, tok.Loc),
-        DataType._int    => RegisterOp(OpType.push_int,  tok.Operand, tok.Loc),
-        KeywordType.dup  => RegisterOp(OpType.dup,  tok.Loc),
-        KeywordType.swap => RegisterOp(OpType.swap, tok.Loc),
-        KeywordType.drop => RegisterOp(OpType.drop, tok.Loc),
-        KeywordType.over => RegisterOp(OpType.over, tok.Loc),
-        KeywordType.rot  => RegisterOp(OpType.rot,  tok.Loc),
-        KeywordType._if  => PushBlock(RegisterOp(OpType.if_start, tok.Loc)),
-        KeywordType.end  => PopBlock(tok.Loc) switch
+        OpType.intrinsic  => RegisterOp(OpType.intrinsic, tok.Operand, tok.Loc),
+        DataType._int     => RegisterOp(OpType.push_int,  tok.Operand, tok.Loc),
+        KeywordType.dup   => RegisterOp(OpType.dup,  tok.Loc),
+        KeywordType.swap  => RegisterOp(OpType.swap, tok.Loc),
+        KeywordType.drop  => RegisterOp(OpType.drop, tok.Loc),
+        KeywordType.over  => RegisterOp(OpType.over, tok.Loc),
+        KeywordType.rot   => RegisterOp(OpType.rot,  tok.Loc),
+        KeywordType._if   => PushBlock(RegisterOp(OpType.if_start, tok.Loc)),
+        KeywordType._else => PeekBlock(tok.Loc) switch
         {
-            OpType.if_start => RegisterOp(OpType.end_if, tok.Loc),
-            _ => -1
+            {Type: OpType.if_start} => RegisterOp(OpType._else, tok.Loc),
+            _ => null
         },
-        _ => -1
-    } >= 0, tok.Loc, $"could not define a op for the token `{tok.Type}`");
+        KeywordType.end   => PopBlock(tok.Loc) switch
+        {
+            {Type: OpType.if_start} => RegisterOp(OpType.end_if, tok.Loc),
+            _ => null
+        },
+        _ => (Op?) null
+    } is Op, tok.Loc, $"could not define a op for the token `{tok.Type}`");
 
-    static int RegisterOp(OpType type, Loc loc) => RegisterOp(type, 0, loc);
-    static int RegisterOp(OpType type, int operand, Loc loc)
+    static Op RegisterOp(OpType type, Loc loc) => RegisterOp(type, 0, loc);
+    static Op RegisterOp(OpType type, int operand, Loc loc)
     {
-        program.Add(new (type, operand, loc));
-        return program.Count() - 1;
+        Op op = new (type, operand, loc);
+        program.Add(op);
+        return op;
     }
 
-    static Stack<int> OpBlock = new ();
+    static Stack<Op> OpBlock = new ();
 
-    static int PushBlock(int op)
+    static Op PushBlock(Op op)
     {
         OpBlock.Push(op);
         return op;
     }
 
-    static OpType PopBlock(Loc loc)
+    static Op PopBlock(Loc loc)
     {
         Assert(OpBlock.Count > 0, loc, "there are no open blocks to close with `end`");
-        return program[OpBlock.Pop()].Type;
+        return OpBlock.Pop();
+    }
+    
+    static Op PeekBlock(Loc loc)
+    {
+        Assert(OpBlock.Count > 0, loc, "there are no open blocks");
+        return OpBlock.Peek();
     }
 }

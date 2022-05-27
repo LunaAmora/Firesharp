@@ -117,6 +117,7 @@ static class Types
         over,
         rot,
         if_start,
+        _else,
         end_if,
     }
 
@@ -132,6 +133,7 @@ static class Types
     public enum KeywordType
     {
         _if,
+        _else,
         proc,
         _in,
         end,
