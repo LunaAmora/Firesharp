@@ -18,22 +18,25 @@ static partial class Firesharp
         public override string ToString() => $"{file}:{line}:{col}:";
     }
 
-    public enum DataType
+    public enum TokenType
     {
         _int,
         _bool,
         _str,
         _cstr,
-        _ptr
+        _ptr,
+        _word,
+        _keyword
     }
 
-    static string DataTypeName(this DataType type) => type switch
+    static string TokenTypeName(this TokenType type) => type switch
     {
-        DataType._int  => "Integer",
-        DataType._bool => "Boolean",
-        DataType._str  => "String",
-        DataType._cstr => "C-style String",
-        DataType._ptr  => "Pointer",
+        TokenType._int  => "Integer",
+        TokenType._bool => "Boolean",
+        TokenType._str  => "String",
+        TokenType._cstr => "C-style String",
+        TokenType._ptr  => "Pointer",
+        TokenType._keyword  => "Keyword",
         _ => Error($"DataType name not implemented: {type}")
     };
 
@@ -97,6 +100,7 @@ static partial class Firesharp
         push_ptr,
         push_str,
         push_cstr,
+        push_global_mem,
         intrinsic,
         dup,
         drop,
@@ -125,6 +129,7 @@ static partial class Firesharp
         proc,
         _in,
         end,
+        memory,
         dup,
         drop,
         swap,

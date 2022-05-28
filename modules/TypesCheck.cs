@@ -1,7 +1,7 @@
 namespace Firesharp;
 
-using DataStack = Stack<(DataType type, Loc loc)>;
-using BlockStack = Stack<(Stack<(DataType type, Loc loc)> stack, Op op)>;
+using DataStack = Stack<(TokenType type, Loc loc)>;
+using BlockStack = Stack<(Stack<(TokenType type, Loc loc)> stack, Op op)>;
 
 static partial class Firesharp
 {
@@ -17,11 +17,11 @@ static partial class Firesharp
 
     static Action TypeCheckOp(Op op)  => op.Type switch
     {
-        OpType.push_int  => () => dataStack.Push((DataType._int,  op.Loc)),
-        OpType.push_bool => () => dataStack.Push((DataType._bool, op.Loc)),
-        OpType.push_ptr  => () => dataStack.Push((DataType._ptr,  op.Loc)),
-        OpType.push_str  => () => dataStack.Push((DataType._str,  op.Loc)),
-        OpType.push_cstr => () => dataStack.Push((DataType._cstr, op.Loc)),
+        OpType.push_int  => () => dataStack.Push((TokenType._int,  op.Loc)),
+        OpType.push_bool => () => dataStack.Push((TokenType._bool, op.Loc)),
+        OpType.push_ptr  => () => dataStack.Push((TokenType._ptr,  op.Loc)),
+        OpType.push_str  => () => dataStack.Push((TokenType._str,  op.Loc)),
+        OpType.push_cstr => () => dataStack.Push((TokenType._cstr, op.Loc)),
         OpType.swap => () => 
         {
             dataStack.ExpectArity(2, ArityType.any, op.Loc);
@@ -61,7 +61,7 @@ static partial class Firesharp
         },
         OpType.if_start => () =>
         {
-            dataStack.ExpectArityType(1, DataType._bool, op.Loc);
+            dataStack.ExpectArityType(1, TokenType._bool, op.Loc);
             dataStack.Pop();
             blockStack.Push((new (dataStack), op));
         },
@@ -111,7 +111,7 @@ static partial class Firesharp
                 dataStack.ExpectArity(2, ArityType.same, op.Loc);
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push((DataType._bool, op.Loc));
+                dataStack.Push((TokenType._bool, op.Loc));
             },
             _ => (Action) (() => Error(op.Loc, $"Intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
         })(),
@@ -135,14 +135,14 @@ static partial class Firesharp
         return ExpectArityType(stack, arityN, first, loc);
     }
 
-    static bool ExpectArityType(this DataStack stack, int arityN, DataType type, Loc loc)
+    static bool ExpectArityType(this DataStack stack, int arityN, TokenType type, Loc loc)
     {
         for (int i = 0; i < arityN; i++)
         {
             var a = stack.ElementAt(i);
             if (!type.Equals(a.type)) 
             {
-                Error(loc, $"Expected type `{DataTypeName(type)}`, but found `{DataTypeName(a.type)}`",
+                Error(loc, $"Expected type `{TokenTypeName(type)}`, but found `{TokenTypeName(a.type)}`",
                     $"{a.loc} [INFO] The type found was declared here");
                 return false;
             }
@@ -169,12 +169,12 @@ static partial class Firesharp
     static string ListTypes(this DataStack types, bool verbose)
     {
         var sb = new StringBuilder("[");
-        sb.AppendJoin(',',  types.Select(t => $"<{DataTypeName(t.type)}>"));
+        sb.AppendJoin(',',  types.Select(t => $"<{TokenTypeName(t.type)}>"));
         sb.Append("]");
         if (verbose)
         {
             sb.Append("\n");
-            sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{DataTypeName(t.type)}` was declared here"));
+            sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{TokenTypeName(t.type)}` was declared here"));
         }
         return sb.ToString();
     }

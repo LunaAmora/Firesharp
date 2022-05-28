@@ -1,7 +1,13 @@
 namespace Firesharp;
 
+using MemList = List<(string name, int size)>;
+
 static partial class Firesharp
 {
+    static List<string> wordList = new ();
+    static Stack<Op> opBlock = new ();
+    static MemList memList = new ();
+
     static void ParseFile(FileStream file, string filepath)
     {
         using (var reader = new StreamReader(file))
@@ -9,13 +15,9 @@ static partial class Firesharp
             Lexer lexer = new (reader, filepath);
             while(lexer.ParseNextToken() is IRToken token)
             {
-                if (token.DefineOp() is Op op)
+                if (token.DefineOp(ref lexer) is Op op)
                 {
                     program.Add(op);
-                }
-                else
-                {
-                    Error(token.Loc, $"could not define a op for the token `{token.Type}`");
                 }
             }
         }
@@ -81,37 +83,35 @@ static partial class Firesharp
                 token = default;
                 return false;
             }
-
             token = new (ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
             return true;
         }
     }
 
-    static IRToken? ParseNextToken(this ref Lexer lexer)
+    static int DefineWord(string word)
     {
-        (Action? error, IRToken? tok) = lexer.TryParseNextToken();
-        if (tok is not IRToken && error is Action) error();
-        return tok;
+        wordList.Add(word);
+        return wordList.Count - 1;
     }
 
-    static (Action? error, IRToken? token) TryParseNextToken(this ref Lexer lexer) => lexer.NextToken(out Token tok) switch
+    static IRToken? ParseNextToken(this ref Lexer lexer) => lexer.NextToken(out Token tok) switch
     {
         false 
-            => (null, null),
+            => (null),
         _ when TryParseNumber   (tok.name, out int value)
-            => (null, new (DataType._int, value, tok.loc)),
-        _ when TryParseKeyword  (tok.name, out KeywordType keyword)
-            => (null, new (keyword, tok.loc)),
-        _ when TryParseIntrinsic(tok.name, out IntrinsicType intrinsic)
-            => (null, new (OpType.intrinsic, (int)intrinsic, tok.loc)),
-        _ => (() => Error(tok.loc, $"Could not parse the word `{tok.name}`"), null)
+            => new (TokenType._int, value, tok.loc),
+        _ when TryParseKeyword  (tok.name, out int keyword)
+            => new (TokenType._keyword, keyword, tok.loc),
+        _ when TryParseIntrinsic(tok.name, out int intrinsic)
+            => new (OpType.intrinsic, intrinsic, tok.loc),
+        _ => new (TokenType._word, DefineWord(tok.name), tok.loc)
     };
 
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
 
-    static bool TryParseKeyword(string word, out KeywordType result)
+    static bool TryParseKeyword(string word, out int result)
     {
-        result = word switch
+        result = (int) (word switch
         {
             "dup"  => KeywordType.dup,
             "swap" => KeywordType.swap,
@@ -121,14 +121,15 @@ static partial class Firesharp
             "if"   => KeywordType._if,
             "else" => KeywordType._else,
             "end"  => KeywordType.end,
+            "memory" => KeywordType.memory,
             _ => (KeywordType)(-1)
-        };
+        });
         return result >= 0;
     }
 
-    static bool TryParseIntrinsic(string word, out IntrinsicType result)
+    static bool TryParseIntrinsic(string word, out int result)
     {
-        result = word switch
+        result = (int)(word switch
         {
             "+" => IntrinsicType.plus,
             "-" => IntrinsicType.minus,
@@ -136,51 +137,96 @@ static partial class Firesharp
             "%" => IntrinsicType.div,
             "=" => IntrinsicType.equal,
             _ => (IntrinsicType)(-1)
-        };
+        });
         return result >= 0;
     }
 
-    static Op? DefineOp(this IRToken tok) => tok.Type switch
+    static Op? DefineOp(this IRToken tok, ref Lexer lexer) => tok.Type switch
     {
-        OpType.intrinsic  => new (OpType.intrinsic, tok.Operand, tok.Loc),
-        DataType._int     => new (OpType.push_int,  tok.Operand, tok.Loc),
-        KeywordType.dup   => new (OpType.dup,  tok.Loc),
-        KeywordType.swap  => new (OpType.swap, tok.Loc),
-        KeywordType.drop  => new (OpType.drop, tok.Loc),
-        KeywordType.over  => new (OpType.over, tok.Loc),
-        KeywordType.rot   => new (OpType.rot,  tok.Loc),
-        KeywordType._if   => PushBlock(new (OpType.if_start, tok.Loc)),
-        KeywordType._else => PopBlock(tok.Loc) switch
+        OpType.intrinsic   => new (OpType.intrinsic, tok.Operand, tok.Loc),
+        TokenType._int     => new (OpType.push_int,  tok.Operand, tok.Loc),
+        TokenType._keyword => (KeywordType)tok.Operand switch
         {
-            {Type: OpType.if_start} => PushBlock(new (OpType._else, tok.Loc)),
-            _ => null
-        },
-        KeywordType.end   => PopBlock(tok.Loc) switch
-        {
-            {Type: OpType.if_start} => new (OpType.end_if, tok.Loc),
-            {Type: OpType._else}    => new (OpType.end_else, tok.Loc),
+            KeywordType.dup    => new (OpType.dup,  tok.Loc),
+            KeywordType.swap   => new (OpType.swap, tok.Loc),
+            KeywordType.drop   => new (OpType.drop, tok.Loc),
+            KeywordType.over   => new (OpType.over, tok.Loc),
+            KeywordType.rot    => new (OpType.rot,  tok.Loc),
+            KeywordType.memory => lexer.DefineMem(tok.Loc),
+            KeywordType._if    => PushBlock(new (OpType.if_start, tok.Loc)),
+            KeywordType._else  => PopBlock(tok.Loc) switch
+            {
+                {Type: OpType.if_start} => PushBlock(new (OpType._else, tok.Loc)),
+                _ => null
+            },
+            KeywordType.end   => PopBlock(tok.Loc) switch
+            {
+                {Type: OpType.if_start} => new (OpType.end_if, tok.Loc),
+                {Type: OpType._else}    => new (OpType.end_else, tok.Loc),
+                _ => null
+            },
             _ => null
         },
         _ => null
     };
 
-    static Stack<Op> OpBlock = new ();
+    static Op? DefineMem(this ref Lexer lexer, Loc loc)
+    {
+        if (lexer.ParseNextToken() is not IRToken nameToken)
+        {
+            Error(loc, "Expected memory name after `memory`, but found nothing");
+            return null;
+        }
+        
+        if(nameToken.Type is not TokenType._word)
+        {
+            Error(loc, $"Expected token type to be a `Word`, but found a `{TokenTypeName((TokenType)nameToken.Type)}`");
+            return null;
+        }
+
+        if (lexer.ParseNextToken() is not IRToken valueToken)
+        {
+            Error(loc, "Expected memory size after memory name, but found nothing");
+            return null;
+        }
+        
+        if(valueToken.Type is not TokenType._int)
+        {
+            Error(loc, $"Expected token type to be a `Integer`, but found a `{TokenTypeName((TokenType)valueToken.Type)}`");
+            return null;
+        }
+
+        if (lexer.ParseNextToken() is not IRToken endToken)
+        {
+            Error(loc, "Expected `end` after memory size, but found nothing");
+            return null;
+        }
+
+        if(!(endToken.Type is TokenType._keyword && (KeywordType)endToken.Operand is KeywordType.end))
+        {
+            Error(loc, $"Expected `end` to close the memory definition, but found a `{TokenTypeName((TokenType)valueToken.Type)}`");
+            return null;
+        }
+
+        memList.Add((wordList[nameToken.Operand], valueToken.Operand));
+        return null;
+    }
 
     static Op PushBlock(Op op)
     {
-        OpBlock.Push(op);
+        opBlock.Push(op);
         return op;
     }
 
     static Op PopBlock(Loc loc)
     {
-        Assert(OpBlock.Count > 0, loc, "there are no open blocks to close with `end`");
-        return OpBlock.Pop();
+        Assert(opBlock.Count > 0, loc, "there are no open blocks to close with `end`");
+        return opBlock.Pop();
     }
     
     static Op PeekBlock(Loc loc)
     {
-        Assert(OpBlock.Count > 0, loc, "there are no open blocks");
-        return OpBlock.Peek();
+        Assert(opBlock.Count > 0, loc, "there are no open blocks");
+        return opBlock.Peek();
     }
 }

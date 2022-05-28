@@ -1,3 +1,6 @@
+memory ciovec  8 end
+memory written 4 end
+
 34 35 dup  rot  + drop
 29 40 over swap + drop
 64 = if
