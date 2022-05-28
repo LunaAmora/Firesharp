@@ -159,8 +159,7 @@ static partial class Firesharp
     static bool ExpectStackEmpty(this DataStack stack)
     {
         return Assert(stack.Count() == 0, 
-        "Expected stack to be empty at the end of the program, but found:",
-        $"[INFO] Found types: {ListTypes(stack, true)}");
+        $"Expected stack to be empty at the end of the program, but found: {ListTypes(stack, true)}");
     }
 
     static bool ExpectStackArity(DataStack expected, DataStack actual, Loc loc, string errorText)
