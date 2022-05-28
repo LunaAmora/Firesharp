@@ -4,16 +4,16 @@ using GlobalMem = List<(string name, int size)>;
 
 static partial class Firesharp
 {
-    static List<string> wordList = new ();
-    static Stack<Op> opBlock = new ();
-    static GlobalMem memList = new ();
+    static List<string> wordList = new();
+    static Stack<Op> opBlock = new();
+    static GlobalMem memList = new();
 
     static void ParseFile(FileStream file, string filepath)
     {
         using (var reader = new StreamReader(file))
         {
-            Lexer lexer = new (reader, filepath);
-            while(lexer.ParseNextToken() is IRToken token)
+            Lexer lexer = new(reader, filepath);
+            while (lexer.ParseNextToken() is IRToken token)
             {
                 if (token.DefineOp(ref lexer) is Op op)
                 {
@@ -44,8 +44,8 @@ static partial class Firesharp
             if (stream.ReadLine() is string line)
             {
                 lineNum++;
-                if(string.IsNullOrWhiteSpace(line)) return(ReadLine());
-                
+                if (string.IsNullOrWhiteSpace(line)) return (ReadLine());
+
                 buffer = line.AsSpan();
                 colNum = 0;
                 parserPos = 0;
@@ -58,7 +58,7 @@ static partial class Firesharp
 
         public void AdvanceByPredicate(Predicate<char> pred)
         {
-            while(buffer.Length > parserPos && !pred(buffer[parserPos])) parserPos++;
+            while (buffer.Length > parserPos && !pred(buffer[parserPos])) parserPos++;
         }
 
         public string ReadByPredicate(Predicate<char> pred)
@@ -69,8 +69,8 @@ static partial class Firesharp
 
         public bool TrimLeft()
         {
-            if(buffer.Slice(parserPos).Trim().IsEmpty) return false;
-            
+            if (buffer.Slice(parserPos).Trim().IsEmpty) return false;
+
             AdvanceByPredicate(pred => pred != ' ');
             colNum = parserPos;
             return true;
@@ -83,7 +83,7 @@ static partial class Firesharp
                 token = default;
                 return false;
             }
-            token = new (ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
+            token = new(ReadByPredicate(pred => pred == ' '), file, lineNum, colNum + 1);
             return true;
         }
     }
@@ -96,20 +96,20 @@ static partial class Firesharp
 
     static IRToken? ParseNextToken(this ref Lexer lexer) => lexer.NextToken(out Token tok) switch
     {
-        false 
+        false
             => (null),
-        _ when TryParseNumber (tok.name, out int value)
-            => new (TokenType._int, value, tok.loc),
-        _ when TryParseKeyword (tok.name, out int keyword)
-            => new (TokenType._keyword, keyword, tok.loc),
-        _ => new (TokenType._word, DefineWord(tok.name), tok.loc)
+        _ when TryParseNumber(tok.name, out int value)
+            => new(TokenType._int, value, tok.loc),
+        _ when TryParseKeyword(tok.name, out int keyword)
+            => new(TokenType._keyword, keyword, tok.loc),
+        _ => new(TokenType._word, DefineWord(tok.name), tok.loc)
     };
 
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
 
     static bool TryParseKeyword(string word, out int result)
     {
-        result = (int) (word switch
+        result = (int)(word switch
         {
             "dup"  => KeywordType.dup,
             "swap" => KeywordType.swap,
@@ -148,37 +148,39 @@ static partial class Firesharp
 
     static Op? DefineOp(this IRToken tok, ref Lexer lexer) => tok.Type switch
     {
-        TokenType._int     => new (OpType.push_int,  tok.Operand, tok.Loc),
-        TokenType._keyword => (KeywordType)tok.Operand switch
-        {
-            KeywordType.dup    => new (OpType.dup,  tok.Loc),
-            KeywordType.swap   => new (OpType.swap, tok.Loc),
-            KeywordType.drop   => new (OpType.drop, tok.Loc),
-            KeywordType.over   => new (OpType.over, tok.Loc),
-            KeywordType.rot    => new (OpType.rot,  tok.Loc),
-            KeywordType.memory => lexer.DefineMemory(tok.Loc),
-            KeywordType._if    => PushBlock(new (OpType.if_start, tok.Loc)),
-            KeywordType._else  => PopBlock(tok.Loc) switch
-            {
-                {Type: OpType.if_start} => PushBlock(new (OpType._else, tok.Loc)),
-                {} op => (Op?) Error(tok.Loc, $"`else` can only come after an `if` block, but found a `{op.Type}` block instead`",
-                    $"{op.Loc} [INFO] The found block started here")
-            },
-            KeywordType.end    => PopBlock(tok.Loc) switch
-            {
-                {Type: OpType.if_start} => new (OpType.end_if, tok.Loc),
-                {Type: OpType._else}    => new (OpType.end_else, tok.Loc),
-                {} op => (Op?) Error(tok.Loc, $"`end` can not close a `{op.Type}` block")
-            },
-            {} typ => (Op?) Error(tok.Loc, $"Keyword type not implemented in `DefineOp` yet: {typ}")
-        },
-        TokenType._word => tok.Operand switch
+        TokenType._int     => new(OpType.push_int, tok.Operand, tok.Loc),
+        TokenType._keyword => DefineOp((KeywordType)tok.Operand, tok.Loc, ref lexer),
+        TokenType._word    => tok.Operand switch
         {
             _ when TryGetIntrinsic(tok.Operand, out int result)
-                => new (OpType.intrinsic, result, tok.Loc),
-            _ => (Op?) Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
+              => new(OpType.intrinsic, result, tok.Loc),
+            _ => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
         },
         _ => null
+    };
+
+    static Op? DefineOp(KeywordType type, Loc loc, ref Lexer lexer) => type switch
+    {
+        KeywordType.dup    => new(OpType.dup, loc),
+        KeywordType.swap   => new(OpType.swap, loc),
+        KeywordType.drop   => new(OpType.drop, loc),
+        KeywordType.over   => new(OpType.over, loc),
+        KeywordType.rot    => new(OpType.rot, loc),
+        KeywordType.memory => lexer.DefineMemory(loc),
+        KeywordType._if    => PushBlock(new(OpType.if_start, loc)),
+        KeywordType._else  => PopBlock(loc) switch
+        {
+            {Type: OpType.if_start} => PushBlock(new(OpType._else, loc)),
+            {} op => (Op?)Error(loc, $"`else` can only come after an `if` block, but found a `{op.Type}` block instead`",
+                $"{op.Loc} [INFO] The found block started here")
+        },
+        KeywordType.end => PopBlock(loc) switch
+        {
+            {Type: OpType.if_start} => new(OpType.end_if, loc),
+            {Type: OpType._else}    => new(OpType.end_else, loc),
+            {} op => (Op?)Error(loc, $"`end` can not close a `{op.Type}` block")
+        },
+        _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
     };
 
     static IRToken? ExpectToken(this ref Lexer lexer, Loc loc, TokenType expectedType, string notFound)
@@ -188,10 +190,10 @@ static partial class Firesharp
         if (lexer.ParseNextToken() is IRToken token)
         {
             if (token.Type.Equals(expectedType)) return token;
-            
+
             sb.Append($"Expected type to be a `{TypeNames(expectedType)}`, but found ");
             errorLoc = token.Loc;
-            
+
             if (token.Type.Equals(TokenType._word) && TryGetIntrinsic(token.Operand, out int intrinsic))
             {
                 sb.Append($"the Intrinsic `{(IntrinsicType)intrinsic}`");
@@ -212,7 +214,7 @@ static partial class Firesharp
     static IRToken? ExpectKeyword(this ref Lexer lexer, Loc loc, KeywordType expectedType, string notFound)
     {
         var token = lexer.ExpectToken(loc, TokenType._keyword, notFound);
-        if(token is IRToken tok && !((KeywordType)tok.Operand).Equals(expectedType))
+        if (token is IRToken tok && !((KeywordType)tok.Operand).Equals(expectedType))
         {
             Error(tok.Loc, $"Expected keyword to be `{expectedType}`, but found `{(KeywordType)tok.Operand}`");
             return null;
@@ -224,8 +226,8 @@ static partial class Firesharp
     {
         if ((lexer.ExpectToken(loc, TokenType._word, "Expected memory name after `memory`"),
             lexer.ExpectToken(loc, TokenType._int, "Expected memory size after memory name"),
-            lexer.ExpectKeyword(loc, KeywordType.end, "Expected `end` after memory size")) is 
-            (IRToken nameToken, IRToken valueToken, IRToken endToken))  
+            lexer.ExpectKeyword(loc, KeywordType.end, "Expected `end` after memory size")) is
+            (IRToken nameToken, IRToken valueToken, IRToken endToken))
         {
             memList.Add((wordList[nameToken.Operand], valueToken.Operand));
         }
@@ -243,7 +245,7 @@ static partial class Firesharp
         Assert(opBlock.Count > 0, loc, "there are no open blocks to close with `end`");
         return opBlock.Pop();
     }
-    
+
     static Op PeekBlock(Loc loc)
     {
         Assert(opBlock.Count > 0, loc, "there are no open blocks");
