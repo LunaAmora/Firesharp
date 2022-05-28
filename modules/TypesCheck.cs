@@ -58,17 +58,18 @@ static partial class Firesharp
             dataStack.Push(A);
             dataStack.Push(B);
         },
+        OpType.push_global_mem => () => dataStack.Push((TokenType._ptr, op.Loc)),
         OpType.if_start => () =>
         {
             dataStack.ExpectArityType(1, TokenType._bool, op.Loc);
             dataStack.Pop();
-            blockStack.Push((new (dataStack), op));
+            blockStack.Push((dataStack.Clone(), op));
         },
         OpType._else => () =>
         {
             (var oldStack, var startOp) = blockStack.Peek();
-            blockStack.Push((new (dataStack), startOp));
-            dataStack = new (oldStack);
+            blockStack.Push((dataStack.Clone(), startOp));
+            dataStack = oldStack.Clone();
         },
         OpType.end_if => () =>
         {
@@ -181,5 +182,13 @@ static partial class Firesharp
             sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{TypeNames(t.type)}` was declared here"));
         }
         return sb.ToString();
+    }
+
+    public static Stack<T> Clone<T>(this Stack<T> original)
+    {
+        var arr = new T[original.Count];
+        original.CopyTo(arr, 0);
+        Array.Reverse(arr);
+        return new Stack<T>(arr);
     }
 }

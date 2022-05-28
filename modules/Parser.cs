@@ -7,6 +7,7 @@ static partial class Firesharp
     static List<string> wordList = new();
     static Stack<Op> opBlock = new();
     static GlobalMem memList = new();
+    static int totalMemSize = 0;
 
     static void ParseFile(FileStream file, string filepath)
     {
@@ -125,11 +126,7 @@ static partial class Firesharp
         return result >= 0;
     }
 
-    static bool TryGetIntrinsic(int index, out int result)
-    {
-        result = -1;
-        return wordList.Count > index ? TryGetIntrinsic(wordList[index], out result) : false;
-    }
+    static bool TryGetIntrinsic(int index, out int result) => TryGetIntrinsic(wordList[index], out result);
 
     private static bool TryGetIntrinsic(string word, out int result)
     {
@@ -152,12 +149,32 @@ static partial class Firesharp
         TokenType._keyword => DefineOp((KeywordType)tok.Operand, tok.Loc, ref lexer),
         TokenType._word    => tok.Operand switch
         {
+            _ when (wordList.Count <= tok.Operand)
+              => (Op?)Error(tok.Loc, $"Unreachable"),
             _ when TryGetIntrinsic(tok.Operand, out int result)
               => new(OpType.intrinsic, result, tok.Loc),
+            _ when TryGetGlobalMem(tok.Operand, out int result)
+              => new(OpType.push_global_mem, result, tok.Loc),
             _ => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
         },
         _ => null
     };
+
+    private static bool TryGetGlobalMem(int operand, out int result)
+    {
+        var word = wordList[operand];
+        result = 0;
+        for (int i = 0; i < memList.Count; i++)
+        {
+            (string name, int size) = memList[i];
+            if (!word.Equals(name))
+            {
+                result += size;
+            }
+            else return true;
+        }
+        return false;
+    }
 
     static Op? DefineOp(KeywordType type, Loc loc, ref Lexer lexer) => type switch
     {
@@ -230,6 +247,7 @@ static partial class Firesharp
             (IRToken nameToken, IRToken valueToken, IRToken endToken))
         {
             memList.Add((wordList[nameToken.Operand], valueToken.Operand));
+            totalMemSize += valueToken.Operand;
         }
         return null;
     }

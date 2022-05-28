@@ -5,8 +5,8 @@ memory written 4 end
 29 40 over swap + drop
 1 cast(bool) if
   drop
-  1 2
+  1 ciovec
 else
-  3
+  written
 end
 drop drop drop

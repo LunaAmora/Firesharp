@@ -23,7 +23,7 @@ static partial class Firesharp
             output.WriteLine("(memory 1)");
             output.WriteLine("(export \"memory\" (memory 0))\n");
 
-            output.WriteLine("(global $LOCAL_STACK (mut i32) (i32.const 0))\n");
+            output.WriteLine("(global $LOCAL_STACK (mut i32) (i32.const {0}))\n", totalMemSize);
 
             output.WriteLine("(func $dup  (param i32 )        (result i32 i32)     local.get 0 local.get 0)");
             output.WriteLine("(func $swap (param i32 i32)     (result i32 i32)     local.get 1 local.get 0)");
@@ -78,6 +78,7 @@ static partial class Firesharp
         OpType.push_int  => $"  i32.const {op.Operand}",
         OpType.push_bool => $"  i32.const {op.Operand}",
         OpType.push_ptr  => $"  i32.const {op.Operand}",
+        OpType.push_global_mem => $"  i32.const {op.Operand}",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",
