@@ -1,12 +1,12 @@
 namespace Firesharp;
 
-using MemList = List<(string name, int size)>;
+using GlobalMem = List<(string name, int size)>;
 
 static partial class Firesharp
 {
     static List<string> wordList = new ();
     static Stack<Op> opBlock = new ();
-    static MemList memList = new ();
+    static GlobalMem memList = new ();
 
     static void ParseFile(FileStream file, string filepath)
     {
@@ -102,8 +102,6 @@ static partial class Firesharp
             => new (TokenType._int, value, tok.loc),
         _ when TryParseKeyword  (tok.name, out int keyword)
             => new (TokenType._keyword, keyword, tok.loc),
-        _ when TryParseIntrinsic(tok.name, out int intrinsic)
-            => new (OpType.intrinsic, intrinsic, tok.loc),
         _ => new (TokenType._word, DefineWord(tok.name), tok.loc)
     };
 
@@ -127,7 +125,13 @@ static partial class Firesharp
         return result >= 0;
     }
 
-    static bool TryParseIntrinsic(string word, out int result)
+    static bool TryGetIntrinsic(int index, out int result)
+    {
+        result = -1;
+        return wordList.Count > index ? TryGetIntrinsic(wordList[index], out result) : false;
+    }
+
+    private static bool TryGetIntrinsic(string word, out int result)
     {
         result = (int)(word switch
         {
@@ -143,7 +147,6 @@ static partial class Firesharp
 
     static Op? DefineOp(this IRToken tok, ref Lexer lexer) => tok.Type switch
     {
-        OpType.intrinsic   => new (OpType.intrinsic, tok.Operand, tok.Loc),
         TokenType._int     => new (OpType.push_int,  tok.Operand, tok.Loc),
         TokenType._keyword => (KeywordType)tok.Operand switch
         {
@@ -159,7 +162,7 @@ static partial class Firesharp
                 {Type: OpType.if_start} => PushBlock(new (OpType._else, tok.Loc)),
                 _ => null
             },
-            KeywordType.end   => PopBlock(tok.Loc) switch
+            KeywordType.end    => PopBlock(tok.Loc) switch
             {
                 {Type: OpType.if_start} => new (OpType.end_if, tok.Loc),
                 {Type: OpType._else}    => new (OpType.end_else, tok.Loc),
@@ -167,23 +170,41 @@ static partial class Firesharp
             },
             _ => null
         },
+        TokenType._word => tok.Operand switch
+        {
+            _ when TryGetIntrinsic(tok.Operand, out int result)
+                => new (OpType.intrinsic, result, tok.Loc),
+            _ => null
+        },
         _ => null
     };
 
     static IRToken? ExpectToken(this ref Lexer lexer, Loc loc, TokenType expectedType, string notFound)
     {
-        if (lexer.ParseNextToken() is not IRToken token)
+        var sb = new StringBuilder();
+        var errorLoc = loc;
+        if (lexer.ParseNextToken() is IRToken token)
         {
-            Error(loc, $"{notFound}, but found nothing");
-            return null;
+            if (token.Type.Equals(expectedType)) return token;
+            
+            sb.Append($"Expected type to be a `{TypeNames(expectedType)}`, but found ");
+            errorLoc = token.Loc;
+            
+            if (token.Type.Equals(TokenType._word) && TryGetIntrinsic(token.Operand, out int intrinsic))
+            {
+                sb.Append($"the Intrinsic `{(IntrinsicType)intrinsic}`");
+            }
+            else
+            {
+                sb.Append($"a `{TypeNames(token.Type)}`");
+            }
         }
-        
-        if(token.Type is not TokenType typ || !typ.Equals(expectedType) )
+        else
         {
-            Error(token.Loc, $"Expected type to be a `{TypeNames(expectedType)}`, but found a `{TypeNames(token.Type)}`");
-            return null;
+            sb.Append($"{notFound}, but found nothing");
         }
-        return token;
+        Error(errorLoc, sb.ToString());
+        return null;
     }
 
     static IRToken? ExpectKeyword(this ref Lexer lexer, Loc loc, KeywordType expectedType, string notFound)

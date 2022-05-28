@@ -29,15 +29,15 @@ static partial class Firesharp
         _keyword
     }
 
-    static string TypeNames(this Enum type) => type switch
+    static string TypeNames(this TokenType type) => type switch
     {
         TokenType._int  => "Integer",
         TokenType._bool => "Boolean",
         TokenType._str  => "String",
         TokenType._cstr => "C-style String",
         TokenType._ptr  => "Pointer",
+        TokenType._word => "Word",
         TokenType._keyword => "Keyword",
-        OpType.intrinsic   => "Intrinsic",
         _ => Error($"DataType name not implemented: {type}")
     };
 
@@ -56,16 +56,16 @@ static partial class Firesharp
     struct IRToken
     {
         public Loc Loc;
-        public Enum Type;
+        public TokenType Type;
         public int Operand = 0;
 
-        public IRToken(Enum type, Loc loc)
+        public IRToken(TokenType type, Loc loc)
         {
             Type = type;
             Loc = loc;
         }
         
-        public IRToken(Enum type, int operand, Loc loc) : this(type, loc) => Operand = operand;
+        public IRToken(TokenType type, int operand, Loc loc) : this(type, loc) => Operand = operand;
     }
     
     public struct Op 
