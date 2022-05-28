@@ -1,13 +1,12 @@
 namespace Firesharp;
 
 using DataStack = Stack<(TokenType type, Loc loc)>;
-using BlockStack = Stack<(Stack<(TokenType type, Loc loc)> stack, Op op)>;
 
 static partial class Firesharp
 {
     static DataStack dataStack = new ();
-    static BlockStack blockStack = new (); //TODO: This method of snapshothing the datastack is really dumb, change later
-    static Dictionary<Op, (int, int)> BlockContacts = new ();
+    static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshothing the datastack is really dumb, change later
+    static Dictionary<Op, (int, int)> blockContacts = new ();
 
     static void TypeCheck(List<Op> program)
     {
@@ -90,7 +89,7 @@ static partial class Firesharp
             var blockImput  = oldStack.Except(expected).Count();
             var blockOutput = expected.Except(oldStack).Count();
 
-            BlockContacts.Add(startOp, (blockImput, blockOutput));
+            blockContacts.Add(startOp, (blockImput, blockOutput));
         },
         OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
         {
@@ -170,12 +169,12 @@ static partial class Firesharp
             $"{loc} [INFO] Actual types:   {ListTypes(actual)}");
     }
 
-    static string ListTypes(this DataStack types) => dataStack.ListTypes(false);
+    static string ListTypes(this DataStack types) => ListTypes(types, false);
     static string ListTypes(this DataStack types, bool verbose)
     {
         var sb = new StringBuilder("[");
-        sb.AppendJoin(',',  types.Select(t => $"<{TypeNames(t.type)}>"));
-        sb.Append("]");
+        sb.AppendJoin(',',  types.Reverse().Select(t => $"<{TypeNames(t.type)}>"));
+        sb.Append("] ->");
         if (verbose)
         {
             sb.Append("\n");

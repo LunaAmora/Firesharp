@@ -100,7 +100,7 @@ static partial class Firesharp
 
     static string AppendContract(this string str, Op op)
     {
-        if(BlockContacts.ContainsKey(op) && BlockContacts[op] is (int ins, int outs) contract)
+        if(blockContacts.ContainsKey(op) && blockContacts[op] is (int ins, int outs) contract)
         {
             var sb = new StringBuilder(str);
             if (ins > 0)
