@@ -142,7 +142,7 @@ static partial class Firesharp
             var a = stack.ElementAt(i);
             if (!type.Equals(a.type)) 
             {
-                Error(loc, $"Expected type `{TokenTypeName(type)}`, but found `{TokenTypeName(a.type)}`",
+                Error(loc, $"Expected type `{TypeNames(type)}`, but found `{TypeNames(a.type)}`",
                     $"{a.loc} [INFO] The type found was declared here");
                 return false;
             }
@@ -169,12 +169,12 @@ static partial class Firesharp
     static string ListTypes(this DataStack types, bool verbose)
     {
         var sb = new StringBuilder("[");
-        sb.AppendJoin(',',  types.Select(t => $"<{TokenTypeName(t.type)}>"));
+        sb.AppendJoin(',',  types.Select(t => $"<{TypeNames(t.type)}>"));
         sb.Append("]");
         if (verbose)
         {
             sb.Append("\n");
-            sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{TokenTypeName(t.type)}` was declared here"));
+            sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{TypeNames(t.type)}` was declared here"));
         }
         return sb.ToString();
     }

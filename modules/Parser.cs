@@ -152,7 +152,7 @@ static partial class Firesharp
             KeywordType.drop   => new (OpType.drop, tok.Loc),
             KeywordType.over   => new (OpType.over, tok.Loc),
             KeywordType.rot    => new (OpType.rot,  tok.Loc),
-            KeywordType.memory => lexer.DefineMem(tok.Loc),
+            KeywordType.memory => lexer.DefineMemory(tok.Loc),
             KeywordType._if    => PushBlock(new (OpType.if_start, tok.Loc)),
             KeywordType._else  => PopBlock(tok.Loc) switch
             {
@@ -170,45 +170,42 @@ static partial class Firesharp
         _ => null
     };
 
-    static Op? DefineMem(this ref Lexer lexer, Loc loc)
+    static IRToken? ExpectToken(this ref Lexer lexer, Loc loc, TokenType expectedType, string notFound)
     {
-        if (lexer.ParseNextToken() is not IRToken nameToken)
+        if (lexer.ParseNextToken() is not IRToken token)
         {
-            Error(loc, "Expected memory name after `memory`, but found nothing");
+            Error(loc, $"{notFound}, but found nothing");
             return null;
         }
         
-        if(nameToken.Type is not TokenType._word)
+        if(token.Type is not TokenType typ || !typ.Equals(expectedType) )
         {
-            Error(loc, $"Expected token type to be a `Word`, but found a `{TokenTypeName((TokenType)nameToken.Type)}`");
+            Error(token.Loc, $"Expected type to be a `{TypeNames(expectedType)}`, but found a `{TypeNames(token.Type)}`");
             return null;
         }
+        return token;
+    }
 
-        if (lexer.ParseNextToken() is not IRToken valueToken)
+    static IRToken? ExpectKeyword(this ref Lexer lexer, Loc loc, KeywordType expectedType, string notFound)
+    {
+        var token = lexer.ExpectToken(loc, TokenType._keyword, notFound);
+        if(token is IRToken tok && !((KeywordType)tok.Operand).Equals(expectedType))
         {
-            Error(loc, "Expected memory size after memory name, but found nothing");
+            Error(tok.Loc, $"Expected keyword to be `{expectedType}`, but found `{(KeywordType)tok.Operand}`");
             return null;
         }
-        
-        if(valueToken.Type is not TokenType._int)
-        {
-            Error(loc, $"Expected token type to be a `Integer`, but found a `{TokenTypeName((TokenType)valueToken.Type)}`");
-            return null;
-        }
+        return token;
+    }
 
-        if (lexer.ParseNextToken() is not IRToken endToken)
+    static Op? DefineMemory(this ref Lexer lexer, Loc loc)
+    {
+        if ((lexer.ExpectToken(loc, TokenType._word, "Expected memory name after `memory`"),
+            lexer.ExpectToken(loc, TokenType._int, "Expected memory size after memory name"),
+            lexer.ExpectKeyword(loc, KeywordType.end, "Expected `end` after memory size")) is 
+            (IRToken nameToken, IRToken valueToken, IRToken endToken))  
         {
-            Error(loc, "Expected `end` after memory size, but found nothing");
-            return null;
+            memList.Add((wordList[nameToken.Operand], valueToken.Operand));
         }
-
-        if(!(endToken.Type is TokenType._keyword && (KeywordType)endToken.Operand is KeywordType.end))
-        {
-            Error(loc, $"Expected `end` to close the memory definition, but found a `{TokenTypeName((TokenType)valueToken.Type)}`");
-            return null;
-        }
-
-        memList.Add((wordList[nameToken.Operand], valueToken.Operand));
         return null;
     }
 

@@ -29,14 +29,15 @@ static partial class Firesharp
         _keyword
     }
 
-    static string TokenTypeName(this TokenType type) => type switch
+    static string TypeNames(this Enum type) => type switch
     {
         TokenType._int  => "Integer",
         TokenType._bool => "Boolean",
         TokenType._str  => "String",
         TokenType._cstr => "C-style String",
         TokenType._ptr  => "Pointer",
-        TokenType._keyword  => "Keyword",
+        TokenType._keyword => "Keyword",
+        OpType.intrinsic   => "Intrinsic",
         _ => Error($"DataType name not implemented: {type}")
     };
 
