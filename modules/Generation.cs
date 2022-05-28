@@ -93,6 +93,8 @@ static partial class Firesharp
             IntrinsicType.plus  => "  i32.add",
             IntrinsicType.minus => "  i32.sub",
             IntrinsicType.equal => "  i32.eq",
+            IntrinsicType.load32  => "  i32.load",
+            IntrinsicType.store32 => "  call $swap\n  i32.store",
             IntrinsicType.cast_bool => string.Empty,
             _ => Error(op.Loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.Operand}`")
         },

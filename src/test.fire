@@ -1,12 +1,15 @@
-memory ciovec  8 end
+memory ciovec  4 end
 memory written 4 end
 
 34 35 dup  rot  + drop
 29 40 over swap + drop
-1 cast(bool) if
-  drop
-  1 ciovec
+1 #bool if
+  drop 1 ciovec !32
 else
-  written
+  written !32
 end
-drop drop drop
+drop
+
+ciovec @32
+written @32
+drop drop

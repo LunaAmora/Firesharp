@@ -137,7 +137,9 @@ static partial class Firesharp
             "*" => IntrinsicType.times,
             "%" => IntrinsicType.div,
             "=" => IntrinsicType.equal,
-            "cast(bool)" => IntrinsicType.cast_bool,
+            "!32" => IntrinsicType.store32,
+            "@32" => IntrinsicType.load32,
+            "#bool" => IntrinsicType.cast_bool,
             _ => (IntrinsicType)(-1)
         });
         return result >= 0;

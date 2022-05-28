@@ -61,7 +61,7 @@ static partial class Firesharp
         OpType.push_global_mem => () => dataStack.Push((TokenType._ptr, op.Loc)),
         OpType.if_start => () =>
         {
-            dataStack.ExpectArityType(1, TokenType._bool, op.Loc);
+            dataStack.ExpectArity(1, TokenType._bool, op.Loc);
             dataStack.Pop();
             blockStack.Push((dataStack.Clone(), op));
         },
@@ -119,6 +119,18 @@ static partial class Firesharp
                 dataStack.Pop();
                 dataStack.Push((TokenType._bool, op.Loc));
             },
+            IntrinsicType.load32 => () =>
+            {
+                dataStack.ExpectArity(1, TokenType._ptr, op.Loc);
+                dataStack.Pop();
+                dataStack.Push((TokenType._int, op.Loc));
+            },
+            IntrinsicType.store32 => () =>
+            {
+                dataStack.ExpectArity(op.Loc, TokenType._ptr, TokenType._int);
+                dataStack.Pop();
+                dataStack.Pop();
+            },
             _ => (Action) (() => Error(op.Loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.Operand}`"))
         })(),
         _ => () => Error(op.Loc, $"Op type not implemented in `TypeCheckOp` yet: {op.Type}")
@@ -130,18 +142,18 @@ static partial class Firesharp
         Assert(arityT switch
         {
             ArityType.any  => true,
-            ArityType.same => ExpectSame(stack, arityN, loc),
+            ArityType.same => ExpectArity(stack, arityN, loc),
             _ => false
         }, loc, "Arity check failled");
     }
 
-    static bool ExpectSame(this DataStack stack, int arityN, Loc loc)
+    static bool ExpectArity(this DataStack stack, int arityN, Loc loc)
     {
         var first = stack.ElementAt(0).type;
-        return ExpectArityType(stack, arityN, first, loc);
+        return ExpectArity(stack, arityN, first, loc);
     }
 
-    static bool ExpectArityType(this DataStack stack, int arityN, TokenType type, Loc loc)
+    static bool ExpectArity(this DataStack stack, int arityN, TokenType type, Loc loc)
     {
         for (int i = 0; i < arityN; i++)
         {
@@ -149,6 +161,21 @@ static partial class Firesharp
             if (!type.Equals(a.type)) 
             {
                 Error(loc, $"Expected type `{TypeNames(type)}`, but found `{TypeNames(a.type)}`",
+                    $"{a.loc} [INFO] The type found was declared here");
+                return false;
+            }
+        }
+        return true;
+    }
+    static bool ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
+    {
+        for (int i = 0; i < contract.Count(); i++)
+        {
+            var a = stack.ElementAt(i);
+            var b = contract.ElementAt(i);
+            if (!b.Equals(a.type)) 
+            {
+                Error(loc, $"Expected type `{TypeNames(b)}`, but found `{TypeNames(a.type)}`",
                     $"{a.loc} [INFO] The type found was declared here");
                 return false;
             }

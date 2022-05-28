@@ -123,7 +123,9 @@ static partial class Firesharp
         times,
         div,
         equal,
-        cast_bool
+        cast_bool,
+        store32,
+        load32
     }
 
     enum KeywordType
