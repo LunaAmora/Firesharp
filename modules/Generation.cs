@@ -8,7 +8,7 @@ static partial class Firesharp
     {
         if (Path.GetDirectoryName(filepath) is not string dir)
         {
-            Error("could not resolve file directory");
+            Error("Could not resolve file directory");
             return;
         }
 
@@ -92,9 +92,10 @@ static partial class Firesharp
             IntrinsicType.plus  => "  i32.add",
             IntrinsicType.minus => "  i32.sub",
             IntrinsicType.equal => "  i32.eq",
-            _ => Error(op.Loc, $"Intrinsic type not implemented in generation: {(IntrinsicType)op.Operand}")
+            IntrinsicType.cast_bool => string.Empty,
+            _ => Error(op.Loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.Operand}`")
         },
-        _ => Error(op.Loc, $"Op type not implemented in generation: {op.Type}")
+        _ => Error(op.Loc, $"Op type not implemented in `GenerateOp` yet: {op.Type}")
     };
 
     static string AppendContract(this string str, Op op)

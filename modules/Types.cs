@@ -86,6 +86,8 @@ static partial class Firesharp
             Type = type;
             Operand = operand;
         }
+
+        public static explicit operator Op?(string str) => null;
     }
 
     enum ArityType
@@ -121,14 +123,13 @@ static partial class Firesharp
         times,
         div,
         equal,
+        cast_bool
     }
 
     enum KeywordType
     {
         _if,
         _else,
-        proc,
-        _in,
         end,
         memory,
         dup,

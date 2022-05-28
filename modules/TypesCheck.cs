@@ -113,9 +113,15 @@ static partial class Firesharp
                 dataStack.Pop();
                 dataStack.Push((TokenType._bool, op.Loc));
             },
-            _ => (Action) (() => Error(op.Loc, $"Intrinsic value `{(IntrinsicType)op.Operand}`is not valid or is not implemented"))
+            IntrinsicType.cast_bool => () =>
+            {
+                dataStack.ExpectArity(1, ArityType.any, op.Loc);
+                dataStack.Pop();
+                dataStack.Push((TokenType._bool, op.Loc));
+            },
+            _ => (Action) (() => Error(op.Loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.Operand}`"))
         })(),
-        _ => () => Error(op.Loc, $"Op type not implemented in typechecking: {op.Type}")
+        _ => () => Error(op.Loc, $"Op type not implemented in `TypeCheckOp` yet: {op.Type}")
     };
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)

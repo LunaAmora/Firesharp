@@ -98,9 +98,9 @@ static partial class Firesharp
     {
         false 
             => (null),
-        _ when TryParseNumber   (tok.name, out int value)
+        _ when TryParseNumber (tok.name, out int value)
             => new (TokenType._int, value, tok.loc),
-        _ when TryParseKeyword  (tok.name, out int keyword)
+        _ when TryParseKeyword (tok.name, out int keyword)
             => new (TokenType._keyword, keyword, tok.loc),
         _ => new (TokenType._word, DefineWord(tok.name), tok.loc)
     };
@@ -140,6 +140,7 @@ static partial class Firesharp
             "*" => IntrinsicType.times,
             "%" => IntrinsicType.div,
             "=" => IntrinsicType.equal,
+            "cast(bool)" => IntrinsicType.cast_bool,
             _ => (IntrinsicType)(-1)
         });
         return result >= 0;
@@ -160,21 +161,22 @@ static partial class Firesharp
             KeywordType._else  => PopBlock(tok.Loc) switch
             {
                 {Type: OpType.if_start} => PushBlock(new (OpType._else, tok.Loc)),
-                _ => null
+                {} op => (Op?) Error(tok.Loc, $"`else` can only come after an `if` block, but found a `{op.Type}` block instead`",
+                    $"{op.Loc} [INFO] The found block started here")
             },
             KeywordType.end    => PopBlock(tok.Loc) switch
             {
                 {Type: OpType.if_start} => new (OpType.end_if, tok.Loc),
                 {Type: OpType._else}    => new (OpType.end_else, tok.Loc),
-                _ => null
+                {} op => (Op?) Error(tok.Loc, $"`end` can not close a `{op.Type}` block")
             },
-            _ => null
+            {} typ => (Op?) Error(tok.Loc, $"Keyword type not implemented in `DefineOp` yet: {typ}")
         },
         TokenType._word => tok.Operand switch
         {
             _ when TryGetIntrinsic(tok.Operand, out int result)
                 => new (OpType.intrinsic, result, tok.Loc),
-            _ => null
+            _ => (Op?) Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
         },
         _ => null
     };

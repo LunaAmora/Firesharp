@@ -3,9 +3,10 @@ memory written 4 end
 
 34 35 dup  rot  + drop
 29 40 over swap + drop
-64 = if
-    drop 4 5 6
+1 cast(bool) if
+  drop
+  1 2
 else
-    420 69
+  3
 end
 drop drop drop
