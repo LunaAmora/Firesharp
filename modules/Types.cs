@@ -26,7 +26,8 @@ static partial class Firesharp
         _cstr,
         _ptr,
         _word,
-        _keyword
+        _keyword,
+        _any
     }
 
     static string TypeNames(this TokenType type) => type switch
@@ -37,6 +38,7 @@ static partial class Firesharp
         TokenType._cstr => "C-style String",
         TokenType._ptr  => "Pointer",
         TokenType._word => "Word",
+        TokenType._any  => "Any",
         TokenType._keyword => "Keyword",
         _ => Error($"DataType name not implemented: {type}")
     };
@@ -124,8 +126,10 @@ static partial class Firesharp
         div,
         equal,
         cast_bool,
+        cast_ptr,
         store32,
-        load32
+        load32,
+        fd_write
     }
 
     enum KeywordType

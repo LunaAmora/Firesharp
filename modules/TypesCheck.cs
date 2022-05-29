@@ -19,8 +19,12 @@ static partial class Firesharp
         OpType.push_int  => () => dataStack.Push((TokenType._int,  op.Loc)),
         OpType.push_bool => () => dataStack.Push((TokenType._bool, op.Loc)),
         OpType.push_ptr  => () => dataStack.Push((TokenType._ptr,  op.Loc)),
-        OpType.push_str  => () => dataStack.Push((TokenType._str,  op.Loc)),
-        OpType.push_cstr => () => dataStack.Push((TokenType._cstr, op.Loc)),
+        OpType.push_str  => () => 
+        {
+            dataStack.Push((TokenType._int,  op.Loc));
+            dataStack.Push((TokenType._ptr,  op.Loc));
+        },
+        OpType.push_cstr => () => dataStack.Push((TokenType._ptr, op.Loc)),
         OpType.swap => () => 
         {
             dataStack.ExpectArity(2, ArityType.any, op.Loc);
@@ -127,9 +131,18 @@ static partial class Firesharp
             },
             IntrinsicType.store32 => () =>
             {
-                dataStack.ExpectArity(op.Loc, TokenType._ptr, TokenType._int);
+                dataStack.ExpectArity(op.Loc, TokenType._ptr, TokenType._any);
                 dataStack.Pop();
                 dataStack.Pop();
+            },
+            IntrinsicType.fd_write => () =>
+            {
+                dataStack.ExpectArity(op.Loc, TokenType._ptr, TokenType._int, TokenType._ptr, TokenType._int);
+                dataStack.Pop();
+                dataStack.Pop();
+                dataStack.Pop();
+                dataStack.Pop();
+                dataStack.Push((TokenType._ptr, op.Loc));
             },
             _ => (Action) (() => Error(op.Loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.Operand}`"))
         })(),
@@ -169,11 +182,12 @@ static partial class Firesharp
     }
     static bool ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
     {
+        Assert(stack.Count >= contract.Count(), loc, "Stack has less elements than expected");
         for (int i = 0; i < contract.Count(); i++)
         {
             var a = stack.ElementAt(i);
             var b = contract.ElementAt(i);
-            if (!b.Equals(a.type)) 
+            if (b is not TokenType._any && !b.Equals(a.type))
             {
                 Error(loc, $"Expected type `{TypeNames(b)}`, but found `{TypeNames(a.type)}`",
                     $"{a.loc} [INFO] The type found was declared here");

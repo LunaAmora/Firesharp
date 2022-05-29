@@ -1,13 +1,17 @@
 namespace Firesharp;
 
-using GlobalMem = List<(string name, int size)>;
+using DataList = List<(string name, int size)>;
 
 static partial class Firesharp
 {
     static List<string> wordList = new();
     static Stack<Op> opBlock = new();
-    static GlobalMem memList = new();
+    static DataList memList = new();
     static int totalMemSize = 0;
+    static DataList dataList = new();
+    static int totalDataSize = 0;
+    
+    static int finalDataSize => ((totalDataSize + 3)/4)*4;
 
     static void ParseFile(FileStream file, string filepath)
     {
@@ -99,12 +103,35 @@ static partial class Firesharp
     {
         false
             => (null),
+        _ when TryParseString(ref lexer, tok, out int index)
+            => new(TokenType._str, index, tok.loc),
         _ when TryParseNumber(tok.name, out int value)
             => new(TokenType._int, value, tok.loc),
         _ when TryParseKeyword(tok.name, out int keyword)
             => new(TokenType._keyword, keyword, tok.loc),
         _ => new(TokenType._word, DefineWord(tok.name), tok.loc)
     };
+
+    private static bool TryParseString(ref Lexer lexer, Token tok, out int index)
+    {
+        index = dataList.Count;
+        if(tok.name.StartsWith('\"') && tok.name is string name)
+        {
+            if(!tok.name.EndsWith('\"'))
+            {
+                lexer.AdvanceByPredicate(pred => pred == '\"');
+                name = lexer.ReadByPredicate(pred => pred == ' ');
+                Assert(name.EndsWith('\"'), tok.loc, "Missing clossing '\"' in string literal");
+            }
+             
+            name = name.Trim('\"');
+            var scapes = name.Count(pred => pred == '\\'); //TODO: This does not take escaped '\' into account
+            dataList.Add((name, name.Length - scapes));
+            totalDataSize += name.Length;
+            return true;
+        }
+        return false;
+    }
 
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
 
@@ -139,7 +166,9 @@ static partial class Firesharp
             "=" => IntrinsicType.equal,
             "!32" => IntrinsicType.store32,
             "@32" => IntrinsicType.load32,
+            "#ptr" => IntrinsicType.cast_ptr,
             "#bool" => IntrinsicType.cast_bool,
+            "fd_write" => IntrinsicType.fd_write,
             _ => (IntrinsicType)(-1)
         });
         return result >= 0;
@@ -148,6 +177,7 @@ static partial class Firesharp
     static Op? DefineOp(this IRToken tok, ref Lexer lexer) => tok.Type switch
     {
         TokenType._int     => new(OpType.push_int, tok.Operand, tok.Loc),
+        TokenType._str     => new(OpType.push_str, tok.Operand, tok.Loc),
         TokenType._keyword => DefineOp((KeywordType)tok.Operand, tok.Loc, ref lexer),
         TokenType._word    => tok.Operand switch
         {
@@ -159,7 +189,7 @@ static partial class Firesharp
               => new(OpType.push_global_mem, result, tok.Loc),
             _ => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
         },
-        _ => null
+        _ => (Op?)Error(tok.Loc, $"TokenType type not implemented in `DefineOp` yet: {tok.Type}")
     };
 
     private static bool TryGetGlobalMem(int operand, out int result)
@@ -171,7 +201,7 @@ static partial class Firesharp
             (string name, int size) = memList[i];
             if (!word.Equals(name))
             {
-                result += size;
+                result += ((size + 3)/4)*4;
             }
             else return true;
         }

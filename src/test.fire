@@ -1,15 +1,13 @@
-memory ciovec  4 end
+memory ciovec     4 end
+memory ciovec.len 4 end
 memory written 4 end
 
-34 35 dup  rot  + drop
-29 40 over swap + drop
-1 #bool if
-  drop 1 ciovec !32
-else
-  written !32
-end
-drop
+"Hello World!\n"
+ciovec     !32
+ciovec.len !32
+1 ciovec 1 written fd_write drop
 
-ciovec @32
-written @32
-drop drop
+"Other text here!!\n"
+ciovec     !32
+ciovec.len !32
+1 ciovec 1 written fd_write drop

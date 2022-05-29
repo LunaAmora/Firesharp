@@ -20,10 +20,11 @@ static partial class Firesharp
         using (var buffered = new BufferedStream(file))
         using (var output   = new StreamWriter(buffered))
         {
+            output.WriteLine("(import \"wasi_unstable\" \"fd_write\" (func $fd_write (param i32 i32 i32 i32) (result i32)))");
             output.WriteLine("(memory 1)");
             output.WriteLine("(export \"memory\" (memory 0))\n");
 
-            output.WriteLine("(global $LOCAL_STACK (mut i32) (i32.const {0}))\n", totalMemSize);
+            output.WriteLine("(global $LOCAL_STACK (mut i32) (i32.const {0}))\n", finalDataSize + totalMemSize);
 
             output.WriteLine("(func $dup  (param i32 )        (result i32 i32)     local.get 0 local.get 0)");
             output.WriteLine("(func $swap (param i32 i32)     (result i32 i32)     local.get 1 local.get 0)");
@@ -40,13 +41,27 @@ static partial class Firesharp
             program.ForEach(op => output.TryWriteLine(GenerateOp(op)));
 
             output.WriteLine(")\n");
-            output.WriteLine("(export \"_start\" (func $start))");
+            output.WriteLine("(export \"_start\" (func $start))\n");
+
+            if (dataList.Count > 0)
+            {
+                var sizeCount = 0;
+                for (int i = 0; i < dataList.Count; i++)
+                {
+                    var data = dataList[i];
+                    output.WriteLine("(global $str{0} i32 (i32.const {1}))", i, sizeCount);
+                    sizeCount += data.size;
+                }
+                output.WriteLine("(data (i32.const 0)");
+                dataList.ForEach(data => output.WriteLine("  \"{0}\"", data.name));
+                output.WriteLine(")");
+            }
         }
         string outWasm = $"{buildPath}/out.wasm";
         CmdEcho("wat2wasm {0} -o {1}", outPath, outWasm);
         // CmdEcho("wasm-opt -Oz --enable-multivalue {0} -o {0}", outWasm);
         // CmdEcho("wasm2wat {0} -o {1}", outWasm, outPath);
-        // CmdEcho("wasmtime {0}", outWasm);
+        CmdEcho("wasmtime {0}", outWasm);
     }
 
     static void CmdEcho(string format, params object?[] arg)
@@ -78,7 +93,8 @@ static partial class Firesharp
         OpType.push_int  => $"  i32.const {op.Operand}",
         OpType.push_bool => $"  i32.const {op.Operand}",
         OpType.push_ptr  => $"  i32.const {op.Operand}",
-        OpType.push_global_mem => $"  i32.const {op.Operand}",
+        OpType.push_str  => $"  i32.const {dataList[op.Operand].size}\n  global.get $str{op.Operand}",
+        OpType.push_global_mem => $"  i32.const {finalDataSize + op.Operand}",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",
@@ -96,6 +112,7 @@ static partial class Firesharp
             IntrinsicType.load32  => "  i32.load",
             IntrinsicType.store32 => "  call $swap\n  i32.store",
             IntrinsicType.cast_bool => string.Empty,
+            IntrinsicType.fd_write => "  call $fd_write",
             _ => Error(op.Loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.Operand}`")
         },
         _ => Error(op.Loc, $"Op type not implemented in `GenerateOp` yet: {op.Type}")
