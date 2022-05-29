@@ -278,8 +278,9 @@ static partial class Firesharp
             lexer.ExpectKeyword(loc, KeywordType.end, "Expected `end` after memory size")) is
             (IRToken nameToken, IRToken valueToken, IRToken endToken))
         {
-            memList.Add((wordList[nameToken.Operand], valueToken.Operand));
-            totalMemSize += valueToken.Operand;
+            var size = ((valueToken.Operand + 3)/4)*4;
+            memList.Add((wordList[nameToken.Operand], size));
+            totalMemSize += size;
         }
         return null;
     }
