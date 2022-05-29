@@ -8,26 +8,29 @@ static partial class Firesharp
     static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshothing the datastack is really dumb, change later
     static Dictionary<Op, (int, int)> blockContacts = new ();
 
+    static Proc? currentProc;
+    static bool insideProc => currentProc != null;
+
     static void TypeCheck(List<Op> program)
     {
         foreach (Op op in program) TypeCheckOp(op)();
         dataStack.ExpectStackEmpty();
     }
 
-    static Action TypeCheckOp(Op op)  => op.Type switch
+    static Action TypeCheckOp(Op op)  => op.type switch
     {
-        OpType.push_int  => () => dataStack.Push((TokenType._int,  op.Loc)),
-        OpType.push_bool => () => dataStack.Push((TokenType._bool, op.Loc)),
-        OpType.push_ptr  => () => dataStack.Push((TokenType._ptr,  op.Loc)),
+        OpType.push_int  => () => dataStack.Push((TokenType._int,  op.loc)),
+        OpType.push_bool => () => dataStack.Push((TokenType._bool, op.loc)),
+        OpType.push_ptr  => () => dataStack.Push((TokenType._ptr,  op.loc)),
         OpType.push_str  => () => 
         {
-            dataStack.Push((TokenType._int,  op.Loc));
-            dataStack.Push((TokenType._ptr,  op.Loc));
+            dataStack.Push((TokenType._int,  op.loc));
+            dataStack.Push((TokenType._ptr,  op.loc));
         },
-        OpType.push_cstr => () => dataStack.Push((TokenType._ptr, op.Loc)),
+        OpType.push_cstr => () => dataStack.Push((TokenType._ptr, op.loc)),
         OpType.swap => () => 
         {
-            dataStack.ExpectArity(2, ArityType.any, op.Loc);
+            dataStack.ExpectArity(2, ArityType.any, op.loc);
             var A = dataStack.Pop();
             var B = dataStack.Pop();
             dataStack.Push(A);
@@ -35,17 +38,17 @@ static partial class Firesharp
         },
         OpType.drop => () =>
         {
-            dataStack.ExpectArity(1, ArityType.any, op.Loc);
+            dataStack.ExpectArity(1, ArityType.any, op.loc);
             dataStack.Pop();
         },
         OpType.dup => () =>
         {
-            dataStack.ExpectArity(1, ArityType.any, op.Loc);
-            dataStack.Push((dataStack.Peek().type, op.Loc));
+            dataStack.ExpectArity(1, ArityType.any, op.loc);
+            dataStack.Push((dataStack.Peek().type, op.loc));
         },
         OpType.rot => () =>
         {
-            dataStack.ExpectArity(3, ArityType.any, op.Loc);
+            dataStack.ExpectArity(3, ArityType.any, op.loc);
             var A = dataStack.Pop();
             var B = dataStack.Pop();
             var C = dataStack.Pop();
@@ -55,17 +58,56 @@ static partial class Firesharp
         },
         OpType.over => () =>
         {
-            dataStack.ExpectArity(2, ArityType.any, op.Loc);
+            dataStack.ExpectArity(2, ArityType.any, op.loc);
             var A = dataStack.Pop();
             var B = dataStack.Pop();
             dataStack.Push(B);
             dataStack.Push(A);
             dataStack.Push(B);
         },
-        OpType.push_global_mem => () => dataStack.Push((TokenType._ptr, op.Loc)),
+        OpType.push_global_mem => () => dataStack.Push((TokenType._ptr, op.loc)),
+        OpType.call => () => 
+        {
+            var proc = procList[op.operand].contract;
+            var ins = new List<TokenType>(proc.ins);
+            ins.Reverse();
+            dataStack.ExpectArity(op.loc, ins.ToArray());
+            
+            for (int i = 0; i < ins.Count(); i++)
+            {
+                dataStack.Pop();
+            }
+            
+            var outs = proc.outs;
+            for (int i = 0; i < outs.Count; i++)
+            {
+                dataStack.Push((outs[i], op.loc));
+            }
+        },
+        OpType.prep_proc => () =>
+        {
+            blockStack.Push((dataStack.Clone(), op));
+            dataStack = new();
+            Assert(!insideProc, op.loc, "Cannot define a procedure inside of another procedure");
+            currentProc = procList[op.operand];
+            currentProc.contract.ins.ForEach(type => dataStack.Push((type, op.loc)));
+        },
+        OpType.end_proc => () =>
+        {
+            Assert(insideProc, "Unreachable");
+            if(currentProc is Proc proc)
+            {
+                var outs = proc.contract.outs;
+                outs.Reverse();
+                dataStack.ExpectArity(op.loc, outs.ToArray());
+                outs.ForEach(_ => dataStack.Pop());
+            }
+            currentProc = null;
+            dataStack = blockStack.Pop().stack.Clone();
+        },
         OpType.if_start => () =>
         {
-            dataStack.ExpectArity(1, TokenType._bool, op.Loc);
+            dataStack.ExpectArity(1, TokenType._bool, op.loc);
             dataStack.Pop();
             blockStack.Push((dataStack.Clone(), op));
         },
@@ -79,14 +121,14 @@ static partial class Firesharp
         {
             var expected = blockStack.Pop().stack;
             
-            ExpectStackArity(expected, dataStack, op.Loc, 
+            ExpectStackArity(expected, dataStack, op.loc, 
             $"Else-less if block is not allowed to alter the types of the arguments on the data stack");
         },
         OpType.end_else => () =>
         {
             var expected = blockStack.Pop().stack;
 
-            ExpectStackArity(expected, dataStack, op.Loc, 
+            ExpectStackArity(expected, dataStack, op.loc, 
             $"Both branches of the if-block must produce the same types of the arguments on the data stack");
 
             (var oldStack, var startOp) = blockStack.Pop();
@@ -96,57 +138,63 @@ static partial class Firesharp
 
             blockContacts.Add(startOp, (blockImput, blockOutput));
         },
-        OpType.intrinsic => () => ((IntrinsicType)op.Operand switch
+        OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
             IntrinsicType.plus => () =>
             {
-                dataStack.ExpectArity(2, ArityType.same, op.Loc);
+                dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
-                dataStack.Push((dataStack.Pop().type, op.Loc));
+                dataStack.Push((dataStack.Pop().type, op.loc));
             },
             IntrinsicType.minus => () =>
             {
-                dataStack.ExpectArity(2, ArityType.same, op.Loc);
+                dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
-                dataStack.Push((dataStack.Pop().type, op.Loc));
+                dataStack.Push((dataStack.Pop().type, op.loc));
             },
             IntrinsicType.equal => () =>
             {
-                dataStack.ExpectArity(2, ArityType.same, op.Loc);
+                dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push((TokenType._bool, op.Loc));
+                dataStack.Push((TokenType._bool, op.loc));
             },
             IntrinsicType.cast_bool => () =>
             {
-                dataStack.ExpectArity(1, ArityType.any, op.Loc);
+                dataStack.ExpectArity(1, ArityType.any, op.loc);
                 dataStack.Pop();
-                dataStack.Push((TokenType._bool, op.Loc));
+                dataStack.Push((TokenType._bool, op.loc));
+            },
+            IntrinsicType.cast_ptr => () =>
+            {
+                dataStack.ExpectArity(1, ArityType.any, op.loc);
+                dataStack.Pop();
+                dataStack.Push((TokenType._ptr, op.loc));
             },
             IntrinsicType.load32 => () =>
             {
-                dataStack.ExpectArity(1, TokenType._ptr, op.Loc);
+                dataStack.ExpectArity(1, TokenType._ptr, op.loc);
                 dataStack.Pop();
-                dataStack.Push((TokenType._int, op.Loc));
+                dataStack.Push((TokenType._int, op.loc));
             },
             IntrinsicType.store32 => () =>
             {
-                dataStack.ExpectArity(op.Loc, TokenType._ptr, TokenType._any);
+                dataStack.ExpectArity(op.loc, TokenType._ptr, TokenType._any);
                 dataStack.Pop();
                 dataStack.Pop();
             },
             IntrinsicType.fd_write => () =>
             {
-                dataStack.ExpectArity(op.Loc, TokenType._ptr, TokenType._int, TokenType._ptr, TokenType._int);
+                dataStack.ExpectArity(op.loc, TokenType._ptr, TokenType._int, TokenType._ptr, TokenType._int);
                 dataStack.Pop();
                 dataStack.Pop();
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push((TokenType._ptr, op.Loc));
+                dataStack.Push((TokenType._ptr, op.loc));
             },
-            _ => (Action) (() => Error(op.Loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.Operand}`"))
+            _ => (Action) (() => Error(op.loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`"))
         })(),
-        _ => () => Error(op.Loc, $"Op type not implemented in `TypeCheckOp` yet: {op.Type}")
+        _ => () => Error(op.loc, $"Op type not implemented in `TypeCheckOp` yet: {op.type}")
     };
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)
@@ -180,6 +228,7 @@ static partial class Firesharp
         }
         return true;
     }
+    
     static bool ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
     {
         Assert(stack.Count >= contract.Count(), loc, "Stack has less elements than expected");

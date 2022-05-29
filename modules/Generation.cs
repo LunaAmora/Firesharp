@@ -34,13 +34,10 @@ static partial class Firesharp
             output.WriteLine("(func $aloc_local (param i32) global.get $LOCAL_STACK local.get 0 i32.add global.set $LOCAL_STACK)");
             output.WriteLine("(func $free_local (param i32) global.get $LOCAL_STACK local.get 0 i32.sub global.set $LOCAL_STACK)");
             output.WriteLine("(func $bind_local (param i32) global.get $LOCAL_STACK local.get 0 i32.store i32.const 4 call $aloc_local)");
-            output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)");
-
-            output.WriteLine("\n(func $start");
+            output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)\n");
 
             program.ForEach(op => output.TryWriteLine(GenerateOp(op)));
 
-            output.WriteLine(")\n");
             output.WriteLine("(export \"_start\" (func $start))\n");
 
             if (dataList.Count > 0)
@@ -88,55 +85,80 @@ static partial class Firesharp
         if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
     }
 
-    static string GenerateOp(Op op) => op.Type switch
+    static string GenerateOp(Op op) => op.type switch
     {
-        OpType.push_int  => $"  i32.const {op.Operand}",
-        OpType.push_bool => $"  i32.const {op.Operand}",
-        OpType.push_ptr  => $"  i32.const {op.Operand}",
-        OpType.push_str  => $"  i32.const {dataList[op.Operand].size}\n  global.get $str{op.Operand}",
-        OpType.push_global_mem => $"  i32.const {finalDataSize + op.Operand}",
+        OpType.push_int  => $"  i32.const {op.operand}",
+        OpType.push_bool => $"  i32.const {op.operand}",
+        OpType.push_ptr  => $"  i32.const {op.operand}",
+        OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  global.get $str{op.operand}",
+        OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
+        OpType.call      => $"  call ${procList[op.operand].name}",
+        OpType.prep_proc => "(func $".AppendProc(op),
         OpType.if_start  => "  if".AppendContract(op),
         OpType._else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
-        OpType.intrinsic => (IntrinsicType)op.Operand switch
+        OpType.end_proc  => ")\n",
+        OpType.intrinsic => (IntrinsicType)op.operand switch
         {
             IntrinsicType.plus  => "  i32.add",
             IntrinsicType.minus => "  i32.sub",
             IntrinsicType.equal => "  i32.eq",
             IntrinsicType.load32  => "  i32.load",
             IntrinsicType.store32 => "  call $swap\n  i32.store",
+            IntrinsicType.cast_ptr  => string.Empty,
             IntrinsicType.cast_bool => string.Empty,
-            IntrinsicType.fd_write => "  call $fd_write",
-            _ => Error(op.Loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.Operand}`")
+            IntrinsicType.fd_write  => "  call $fd_write",
+            _ => Error(op.loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`")
         },
-        _ => Error(op.Loc, $"Op type not implemented in `GenerateOp` yet: {op.Type}")
+        _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
     };
+
+    static string AppendProc(this string str, Op op)
+    {
+        var proc = procList[op.operand];
+        var contract = proc.contract;
+        (int ins, int outs) contr = (contract.ins.Count, contract.outs.Count);
+        var sb = new StringBuilder(ContractString($"{str}{proc.name}", contr));
+
+        if(contr.ins > 0) sb.Append("\n ");
+
+        for (int i = 0; i < contr.ins; i++)
+        {
+            sb.Append($" local.get {i}");
+        }
+        return sb.ToString();
+    }
 
     static string AppendContract(this string str, Op op)
     {
         if(blockContacts.ContainsKey(op) && blockContacts[op] is (int ins, int outs) contract)
         {
-            var sb = new StringBuilder(str);
-            if (ins > 0)
-            {
-                sb.Append(" (param");
-                sb.Insert(sb.Length, " i32", ins);
-                sb.Append(")");
-            }
-            if (outs > 0)
-            {
-                sb.Append(" (result");
-                sb.Insert(sb.Length, " i32", outs);
-                sb.Append(")");
-            }
-            return sb.ToString();
+            return ContractString(str, contract);
         }
         return str;
+    }
+
+    private static string ContractString(string str, (int ins, int outs) contract)
+    {
+        var sb = new StringBuilder(str);
+        if (contract.ins > 0)
+        {
+            sb.Append(" (param");
+            sb.Insert(sb.Length, " i32", contract.ins);
+            sb.Append(")");
+        }
+        if (contract.outs > 0)
+        {
+            sb.Append(" (result");
+            sb.Insert(sb.Length, " i32", contract.outs);
+            sb.Append(")");
+        }
+        return sb.ToString();
     }
 }

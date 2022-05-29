@@ -2,12 +2,13 @@ memory ciovec     4 end
 memory ciovec.len 4 end
 memory written 4 end
 
-"Hello World!\n"
-ciovec     !32
-ciovec.len !32
-1 ciovec 1 written fd_write drop
+proc puts int ptr in
+  ciovec     !32
+  ciovec.len !32
+  1 ciovec 1 written fd_write drop
+end
 
-"Other text here!!\n"
-ciovec     !32
-ciovec.len !32
-1 ciovec 1 written fd_write drop
+proc start in
+  "Hello World!\n"      puts
+  "Other text here!!\n" puts
+end
