@@ -14,7 +14,6 @@ static partial class Firesharp
     static void TypeCheck(List<Op> program)
     {
         foreach (Op op in program) TypeCheckOp(op)();
-        dataStack.ExpectStackEmpty();
     }
 
     static Action TypeCheckOp(Op op)  => op.type switch
@@ -99,7 +98,8 @@ static partial class Firesharp
             {
                 var outs = proc.contract.outs;
                 outs.Reverse();
-                dataStack.ExpectArity(op.loc, outs.ToArray());
+                
+                dataStack.ExpectStackExact(op.loc, outs.ToArray());
                 outs.ForEach(_ => dataStack.Pop());
             }
             currentProc = null;
@@ -246,10 +246,13 @@ static partial class Firesharp
         return true;
     }
 
-    static bool ExpectStackEmpty(this DataStack stack)
+    static bool ExpectStackExact(this DataStack stack, Loc loc, params TokenType[] contract)
     {
-        return Assert(stack.Count() == 0, 
-        $"Expected stack to be empty at the end of the program, but found: {ListTypes(stack, true)}");
+        Assert(stack.Count() == contract.Count(), loc,
+        $"Expected stack at the end of the procedure does not match the procedure contract:",
+            $"{loc} [INFO] Expected types: {ListTypes(contract.ToList())}",
+            $"{loc} [INFO] Actual types:   {ListTypes(stack, true)}");
+        return(stack.ExpectArity(loc, contract));
     }
 
     static bool ExpectStackArity(DataStack expected, DataStack actual, Loc loc, string errorText)
@@ -263,14 +266,22 @@ static partial class Firesharp
     static string ListTypes(this DataStack types) => ListTypes(types, false);
     static string ListTypes(this DataStack types, bool verbose)
     {
-        var sb = new StringBuilder("[");
-        sb.AppendJoin(',',  types.Reverse().Select(t => $"<{TypeNames(t.type)}>"));
-        sb.Append("] ->");
+        var typs = ListTypes(types.Reverse().Select(t => t.type).ToList());
         if (verbose)
         {
+            var sb = new StringBuilder(typs);
             sb.Append("\n");
             sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{TypeNames(t.type)}` was declared here"));
+            return sb.ToString();
         }
+        return typs;
+    }
+
+    static string ListTypes(this List<TokenType> types)
+    {
+        var sb = new StringBuilder("[");
+        sb.AppendJoin(',',  types.Select(t => $"<{TypeNames(t)}>"));
+        sb.Append("] ->");
         return sb.ToString();
     }
 

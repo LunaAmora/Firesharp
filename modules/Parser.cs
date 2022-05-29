@@ -183,9 +183,10 @@ static partial class Firesharp
 
     static Op? DefineOp(this IRToken tok, ref Lexer lexer) => tok.Type switch
     {
+        {} typ when ExpectProc(typ, tok.Loc, $"Token type cannot be used outside of a procedure: `{TypeNames(typ)}`") => null,
+        TokenType._keyword => DefineOp((KeywordType)tok.Operand, tok.Loc, ref lexer),
         TokenType._int     => new(OpType.push_int, tok.Operand, tok.Loc),
         TokenType._str     => new(OpType.push_str, tok.Operand, tok.Loc),
-        TokenType._keyword => DefineOp((KeywordType)tok.Operand, tok.Loc, ref lexer),
         TokenType._word    => tok.Operand switch
         {
             _ when (wordList.Count <= tok.Operand)
@@ -198,7 +199,7 @@ static partial class Firesharp
               => new(OpType.call, result, tok.Loc),
             _ => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
         },
-        _ => (Op?)Error(tok.Loc, $"TokenType type not implemented in `DefineOp` yet: {tok.Type}")
+        _ => (Op?)Error(tok.Loc, $"Token type not implemented in `DefineOp` yet: {tok.Type}")
     };
 
     private static bool TryGetProcName(int operand, out int result)
@@ -233,13 +234,13 @@ static partial class Firesharp
         KeywordType.rot    => new(OpType.rot, loc),
         KeywordType.memory => lexer.DefineMemory(loc),
         KeywordType._if    => PushBlock(new(OpType.if_start, loc)),
-        KeywordType._else  => PopBlock(loc) switch
+        KeywordType._else  => PopBlock(loc, "there are no open blocks to close with `else`") switch
         {
             {type: OpType.if_start} => PushBlock(new(OpType._else, loc)),
             {} op => (Op?)Error(loc, $"`else` can only come after an `if` block, but found a `{op.type}` block instead`",
                 $"{op.loc} [INFO] The found block started here")
         },
-        KeywordType.end => PopBlock(loc) switch
+        KeywordType.end => PopBlock(loc, "there are no open blocks to close with `end`") switch
         {
             {type: OpType.if_start}  => new(OpType.end_if, loc),
             {type: OpType._else}     => new(OpType.end_else, loc),
@@ -375,15 +376,20 @@ static partial class Firesharp
         return op;
     }
 
-    static Op PopBlock(Loc loc)
+    static Op PopBlock(Loc loc, string errorText)
     {
-        Assert(opBlock.Count > 0, loc, "there are no open blocks to close with `end`");
+        Assert(opBlock.Count > 0, loc, errorText);
         return opBlock.Pop();
     }
 
-    static Op PeekBlock(Loc loc)
+    static Op? PeekBlock(Loc loc, string errorText)
     {
-        Assert(opBlock.Count > 0, loc, "there are no open blocks");
+        Assert(opBlock.Count > 0, loc, errorText);
         return opBlock.Peek();
+    }
+
+    static bool ExpectProc(TokenType type, Loc loc, string errorText)
+    {
+        return (!(type is TokenType._keyword || PeekBlock(loc, errorText) is Op));
     }
 }
