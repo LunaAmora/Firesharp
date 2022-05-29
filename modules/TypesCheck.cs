@@ -71,22 +71,12 @@ static partial class Firesharp
             var ins = new List<TokenType>(proc.ins);
             ins.Reverse();
             dataStack.ExpectArity(op.loc, ins.ToArray());
-            
-            for (int i = 0; i < ins.Count(); i++)
-            {
-                dataStack.Pop();
-            }
-            
+            ins.ForEach(_ => dataStack.Pop());
             var outs = proc.outs;
-            for (int i = 0; i < outs.Count; i++)
-            {
-                dataStack.Push((outs[i], op.loc));
-            }
+            for (int i = 0; i < outs.Count; i++) dataStack.Push((outs[i], op.loc));
         },
         OpType.prep_proc => () =>
         {
-            blockStack.Push((dataStack.Clone(), op));
-            dataStack = new();
             Assert(!insideProc, op.loc, "Cannot define a procedure inside of another procedure");
             currentProc = procList[op.operand];
             currentProc.contract.ins.ForEach(type => dataStack.Push((type, op.loc)));
@@ -98,12 +88,11 @@ static partial class Firesharp
             {
                 var outs = proc.contract.outs;
                 outs.Reverse();
-                
                 dataStack.ExpectStackExact(op.loc, outs.ToArray());
                 outs.ForEach(_ => dataStack.Pop());
             }
             currentProc = null;
-            dataStack = blockStack.Pop().stack.Clone();
+            dataStack = new();
         },
         OpType.if_start => () =>
         {

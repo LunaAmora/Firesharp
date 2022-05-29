@@ -267,32 +267,21 @@ static partial class Firesharp
 
         while(lexer.ParseNextToken() is IRToken tok)
         {
-            if(tok is {Type: TokenType._keyword})
+            if(tok is {Type: TokenType._keyword} && (KeywordType)tok.Operand is KeywordType typ)
             {
-                var key = (KeywordType)tok.Operand switch
+                if (typ switch
                 {
                     KeywordType._int  => TokenType._int,
                     KeywordType._ptr  => TokenType._ptr,
                     KeywordType._bool => TokenType._bool,
                     _ => TokenType._keyword
-                };
-
-                if(key is not TokenType._keyword)
+                } is TokenType key && key is not TokenType._keyword)
                 {
-                    if(!foundArrow)
-                    {
-                        ins.Add(key);
-                    }
-                    else
-                    {
-                        outs.Add(key);
-                    }
+                    if(!foundArrow) ins.Add(key);
+                    else outs.Add(key);
                 }
-                else if ((KeywordType)tok.Operand is KeywordType.arrow)
-                {
-                    foundArrow = true;
-                }
-                else if ((KeywordType)tok.Operand is KeywordType._in)
+                else if (typ is KeywordType.arrow) foundArrow = true;
+                else if (typ is KeywordType._in)
                 {
                     procList.Add(new (name, op, new(ins, outs)));
                     op.operand = procList.Count -1;
@@ -300,7 +289,7 @@ static partial class Firesharp
                 }
                 else
                 {
-                    sb.Append($": `{(KeywordType)tok.Operand}`");
+                    sb.Append($": `{typ}`");
                     return (Op?)Error(tok.Loc, sb.ToString());
                 }
             }
@@ -314,30 +303,24 @@ static partial class Firesharp
         return (Op?)Error(op.loc, sb.ToString());
     }
 
-    static IRToken? ExpectToken(this ref Lexer lexer, Loc loc, TokenType expectedType, string notFound)
+    static IRToken? ExpectToken(this ref Lexer lexer, Loc loc, TokenType expected, string notFound)
     {
         var sb = new StringBuilder();
         var errorLoc = loc;
         if (lexer.ParseNextToken() is IRToken token)
         {
-            if (token.Type.Equals(expectedType)) return token;
+            if (token.Type.Equals(expected)) return token;
 
-            sb.Append($"Expected type to be a `{TypeNames(expectedType)}`, but found ");
+            sb.Append($"Expected type to be a `{TypeNames(expected)}`, but found ");
             errorLoc = token.Loc;
 
             if (token.Type.Equals(TokenType._word) && TryGetIntrinsic(token.Operand, out int intrinsic))
             {
                 sb.Append($"the Intrinsic `{(IntrinsicType)intrinsic}`");
             }
-            else
-            {
-                sb.Append($"a `{TypeNames(token.Type)}`");
-            }
+            else sb.Append($"a `{TypeNames(token.Type)}`");
         }
-        else
-        {
-            sb.Append($"{notFound}, but found nothing");
-        }
+        else sb.Append($"{notFound}, but found nothing");
         Error(errorLoc, sb.ToString());
         return null;
     }
@@ -369,10 +352,7 @@ static partial class Firesharp
 
     static Op? PushBlock(Op? op)
     {
-        if(op is Op o)
-        {
-            opBlock.Push(o);
-        }
+        if(op is Op o) opBlock.Push(o);
         return op;
     }
 

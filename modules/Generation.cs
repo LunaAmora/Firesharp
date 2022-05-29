@@ -87,11 +87,11 @@ static partial class Firesharp
 
     static string GenerateOp(Op op) => op.type switch
     {
-        OpType.push_int  => $"  i32.const {op.operand}",
-        OpType.push_bool => $"  i32.const {op.operand}",
-        OpType.push_ptr  => $"  i32.const {op.operand}",
-        OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  global.get $str{op.operand}",
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
+        OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  global.get $str{op.operand}",
+        OpType.push_int  => $"  i32.const {op.operand}",
+        OpType.push_ptr  => $"  i32.const {op.operand}",
+        OpType.push_bool => $"  i32.const {op.operand}",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",
@@ -106,14 +106,14 @@ static partial class Firesharp
         OpType.end_proc  => ")\n",
         OpType.intrinsic => (IntrinsicType)op.operand switch
         {
-            IntrinsicType.plus  => "  i32.add",
-            IntrinsicType.minus => "  i32.sub",
-            IntrinsicType.equal => "  i32.eq",
-            IntrinsicType.load32  => "  i32.load",
-            IntrinsicType.store32 => "  call $swap\n  i32.store",
+            IntrinsicType.plus      => "  i32.add",
+            IntrinsicType.minus     => "  i32.sub",
+            IntrinsicType.equal     => "  i32.eq",
+            IntrinsicType.load32    => "  i32.load",
+            IntrinsicType.store32   => "  call $swap\n  i32.store",
+            IntrinsicType.fd_write  => "  call $fd_write",
             IntrinsicType.cast_ptr  => string.Empty,
             IntrinsicType.cast_bool => string.Empty,
-            IntrinsicType.fd_write  => "  call $fd_write",
             _ => Error(op.loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`")
         },
         _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
@@ -127,11 +127,7 @@ static partial class Firesharp
         var sb = new StringBuilder(ContractString($"{str}{proc.name}", contr));
 
         if(contr.ins > 0) sb.Append("\n ");
-
-        for (int i = 0; i < contr.ins; i++)
-        {
-            sb.Append($" local.get {i}");
-        }
+        for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         return sb.ToString();
     }
 
