@@ -2,9 +2,14 @@ ciovec:  mem: 4 end
 veclen:  mem: 4 end
 written: mem: 4 end
 
+!ptr: proc: ptr ptr: !32 end
+!int: proc: int ptr: !32 end
+@ptr: proc: ptr -> ptr: @32 #ptr end
+@int: proc: ptr -> int: @32 end
+
 puts: proc: int ptr:
-  ciovec !32 
-  veclen !32
+  ciovec !ptr 
+  veclen !int
   1 ciovec 1 written fd_write drop
 end
 
