@@ -1,10 +1,13 @@
 namespace Firesharp;
 
+using DataList = List<(string name, int offset)>;
+
 static partial class Firesharp
 {
     record Proc(string name, Op proc_start, Contract contract)
     {
-        public int procLocalMem = 0;
+        public DataList localMemNames = new();
+        public int procMemSize = 0;
     }
 
     record Contract(List<TokenType> ins, List<TokenType> outs);
@@ -111,6 +114,7 @@ static partial class Firesharp
         push_ptr,
         push_str,
         push_cstr,
+        push_local_mem,
         push_global_mem,
         intrinsic,
         dup,

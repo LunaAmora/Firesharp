@@ -1,6 +1,6 @@
 namespace Firesharp;
 
-using DataList = List<(string name, int size)>;
+using DataList = List<(string name, int offset)>;
 
 static partial class Firesharp
 {
@@ -13,6 +13,9 @@ static partial class Firesharp
     static int totalDataSize = 0;
     
     static int finalDataSize => ((totalDataSize + 3)/4)*4;
+
+    static Proc? currentProc;
+    static bool insideProc => currentProc != null;
 
     static void ParseFile(FileStream file, string filepath)
     {
@@ -201,6 +204,7 @@ static partial class Firesharp
         {
             _ when (wordList.Count <= tok.Operand) => (Op?)Error(tok.Loc, $"Unreachable"),
             _ when TryGetIntrinsic(wordList[tok.Operand], tok.Loc, out Op? result) => result,
+            _ when TryGetLocalMem(wordList[tok.Operand], tok.Loc, out Op? result) => result,
             _ when TryGetGlobalMem(wordList[tok.Operand], tok.Loc, out Op? result) => result,
             _ when TryGetProcName(wordList[tok.Operand], tok.Loc, out Op? result)  => result,
             _ when TryDefineContext(wordList[tok.Operand], tok.Loc, ref lexer, out Op? result) => result,
@@ -227,11 +231,17 @@ static partial class Firesharp
         {
             {type: OpType.if_start}  => new(OpType.end_if, loc),
             {type: OpType._else}     => new(OpType.end_else, loc),
-            {type: OpType.prep_proc} => new(OpType.end_proc, loc),
+            {type: OpType.prep_proc} op => ExitProc(new(OpType.end_proc, op.operand, loc)),
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
         },
         _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
     };
+
+    static Op ExitProc(Op op)
+    {
+        currentProc = null;
+        return op;
+    }
 
     static bool TryDefineContext(string word, Loc loc, ref Lexer lexer, out Op? result)
     {
@@ -244,7 +254,7 @@ static partial class Firesharp
             {
                 result = (KeywordType)tokType.Operand switch
                 {
-                    KeywordType.proc => PushBlock(lexer.ParseContract(word, new(OpType.prep_proc, loc))),
+                    KeywordType.proc => lexer.ParseProcContract(word, new(OpType.prep_proc, loc)),
                     KeywordType.mem  => lexer.DefineMemory(word, loc),
                     {} k => (Op?)Error(loc, $"Keyword not supported in type assignment: {k}")
                 };
@@ -261,19 +271,14 @@ static partial class Firesharp
         return index >= 0;
     }
 
-    static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
+    private static bool TryGetLocalMem(string word, Loc loc, out Op? result)
     {
-        int res = 0;
-        for (int i = 0; i < memList.Count; i++)
+        if(currentProc is Proc proc)
         {
-            (string name, int size) = memList[i];
-            if (!word.Equals(name))
+            var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
+            if (index != - 1)
             {
-                res += ((size + 3)/4)*4;
-            }
-            else
-            {
-                result = new (OpType.push_global_mem, res, loc);
+                result = new (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
                 return true;
             }
         }
@@ -281,7 +286,19 @@ static partial class Firesharp
         return false;
     }
 
-    static Op? ParseContract(this ref Lexer lexer, string name, Op op)
+    static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
+    {
+        var index = memList.FindIndex(mem => mem.name.Equals(word));
+        if (index != - 1)
+        {
+            result = new (OpType.push_global_mem, memList[index].offset, loc);
+            return true;
+        }
+        result = null;
+        return false;
+    }
+
+    static Op? ParseProcContract(this ref Lexer lexer, string name, Op op)
     {
         List<TokenType> ins = new();
         List<TokenType> outs = new();
@@ -307,9 +324,10 @@ static partial class Firesharp
                 else if (typ is KeywordType.arrow) foundArrow = true;
                 else if (typ is KeywordType.colon)
                 {
-                    procList.Add(new (name, op, new(ins, outs)));
+                    currentProc = new (name, op, new(ins, outs));
+                    procList.Add(currentProc);
                     op.operand = procList.Count -1;
-                    return op;
+                    return PushBlock(op);
                 }
                 else
                 {
@@ -368,8 +386,16 @@ static partial class Firesharp
             (_, IRToken valueToken, IRToken endToken))
         {
             var size = ((valueToken.Operand + 3)/4)*4;
-            memList.Add((word, size));
-            totalMemSize += size;
+            if (currentProc is Proc proc)
+            {
+                proc.localMemNames.Add((word, proc.procMemSize));
+                proc.procMemSize += size;
+            }
+            else
+            {
+                memList.Add((word, totalMemSize));
+                totalMemSize += size;
+            }
         }
         return null;
     }

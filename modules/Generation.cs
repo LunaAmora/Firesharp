@@ -47,7 +47,7 @@ static partial class Firesharp
                 {
                     var data = dataList[i];
                     output.WriteLine("(global $str{0} i32 (i32.const {1}))", i, sizeCount);
-                    sizeCount += data.size;
+                    sizeCount += data.offset;
                 }
                 output.WriteLine("(data (i32.const 0)");
                 dataList.ForEach(data => output.WriteLine("  \"{0}\"", data.name));
@@ -88,7 +88,8 @@ static partial class Firesharp
     static string GenerateOp(Op op) => op.type switch
     {
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
-        OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  global.get $str{op.operand}",
+        OpType.push_local_mem => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
+        OpType.push_str  => $"  i32.const {dataList[op.operand].offset}\n  global.get $str{op.operand}",
         OpType.push_int  => $"  i32.const {op.operand}",
         OpType.push_ptr  => $"  i32.const {op.operand}",
         OpType.push_bool => $"  i32.const {op.operand}",
@@ -103,7 +104,7 @@ static partial class Firesharp
         OpType._else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
-        OpType.end_proc  => ")\n",
+        OpType.end_proc  => ")\n".PrependProc(op),
         OpType.intrinsic => (IntrinsicType)op.operand switch
         {
             IntrinsicType.plus      => "  i32.add",
@@ -119,12 +120,27 @@ static partial class Firesharp
         _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
     };
 
+    static string PrependProc(this string str, Op op)
+    {
+        var proc = procList[op.operand];
+        if(proc.procMemSize > 0)
+        {
+            str = $"  i32.const {proc.procMemSize} call $free_local\n{str}";
+        }
+        return str;
+    }
+
     static string AppendProc(this string str, Op op)
     {
         var proc = procList[op.operand];
         var contract = proc.contract;
         (int ins, int outs) contr = (contract.ins.Count, contract.outs.Count);
         var sb = new StringBuilder(ContractString($"{str}{proc.name}", contr));
+
+        if(proc.procMemSize > 0)
+        {
+            sb.Append($"\n  i32.const {proc.procMemSize} call $aloc_local");
+        }
 
         if(contr.ins > 0) sb.Append("\n ");
         for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");

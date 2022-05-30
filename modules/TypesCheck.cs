@@ -8,9 +8,6 @@ static partial class Firesharp
     static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshothing the datastack is really dumb, change later
     static Dictionary<Op, (int, int)> blockContacts = new ();
 
-    static Proc? currentProc;
-    static bool insideProc => currentProc != null;
-
     static void TypeCheck(List<Op> program)
     {
         foreach (Op op in program) TypeCheckOp(op)();
@@ -65,6 +62,7 @@ static partial class Firesharp
             dataStack.Push(B);
         },
         OpType.push_global_mem => () => dataStack.Push((TokenType._ptr, op.loc)),
+        OpType.push_local_mem => () => dataStack.Push((TokenType._ptr, op.loc)),
         OpType.call => () => 
         {
             var proc = procList[op.operand].contract;

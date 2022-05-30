@@ -1,19 +1,19 @@
-ciovec:  mem: 4 end
-veclen:  mem: 4 end
-written: mem: 4 end
+!ptr: proc : ptr ptr : !32 end
+!int: proc : int ptr : !32 end
+@ptr: proc : ptr -> ptr : @32 #ptr end
+@int: proc : ptr -> int : @32 end
 
-!ptr: proc: ptr ptr: !32 end
-!int: proc: int ptr: !32 end
-@ptr: proc: ptr -> ptr: @32 #ptr end
-@int: proc: ptr -> int: @32 end
+ptr+: proc : ptr int -> ptr : #ptr + end
 
-puts: proc: int ptr:
+puts: proc : int ptr :
+  ciovec:  mem: 8 end
+  written: mem: 4 end
   ciovec !ptr 
-  veclen !int
+  ciovec 4 ptr+ !int
   1 ciovec 1 written fd_write drop
 end
 
-start: proc::
+start: proc ::
   "Hello World!\n"      puts
   "Other text here!!\n" puts
 end
