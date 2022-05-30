@@ -1,13 +1,14 @@
 namespace Firesharp;
 
-using DataList = List<(string name, int offset)>;
+using MemList = List<(string name, int offset)>;
+using DataList = List<(string name, int offset, int size)>;
 
 static partial class Firesharp
 {
     static List<string> wordList = new();
     static List<Proc> procList = new();
     static Stack<Op> opBlock = new();
-    static DataList memList = new();
+    static MemList memList = new();
     static int totalMemSize = 0;
     static DataList dataList = new();
     static int totalDataSize = 0;
@@ -149,8 +150,9 @@ static partial class Firesharp
              
             name = name.Trim('\"');
             var scapes = name.Count(pred => pred == '\\'); //TODO: This does not take escaped '\' into account
-            dataList.Add((name, name.Length - scapes));
-            totalDataSize += name.Length;
+            var length = name.Length - scapes;
+            dataList.Add((name, totalDataSize, length));
+            totalDataSize += length;
             return true;
         }
         return false;

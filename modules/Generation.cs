@@ -42,13 +42,6 @@ static partial class Firesharp
 
             if (dataList.Count > 0)
             {
-                var sizeCount = 0;
-                for (int i = 0; i < dataList.Count; i++)
-                {
-                    var data = dataList[i];
-                    output.WriteLine("(global $str{0} i32 (i32.const {1}))", i, sizeCount);
-                    sizeCount += data.offset;
-                }
                 output.WriteLine("(data (i32.const 0)");
                 dataList.ForEach(data => output.WriteLine("  \"{0}\"", data.name));
                 output.WriteLine(")");
@@ -89,7 +82,7 @@ static partial class Firesharp
     {
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
         OpType.push_local_mem => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
-        OpType.push_str  => $"  i32.const {dataList[op.operand].offset}\n  global.get $str{op.operand}",
+        OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
         OpType.push_int  => $"  i32.const {op.operand}",
         OpType.push_ptr  => $"  i32.const {op.operand}",
         OpType.push_bool => $"  i32.const {op.operand}",
