@@ -1,14 +1,14 @@
-memory ciovec     4 end
-memory ciovec.len 4 end
-memory written 4 end
+ciovec:  mem: 4 end
+veclen:  mem: 4 end
+written: mem: 4 end
 
-proc puts int ptr in
-  ciovec     !32
-  ciovec.len !32
+puts: proc: int ptr:
+  ciovec !32 
+  veclen !32
   1 ciovec 1 written fd_write drop
 end
 
-proc start in
+start: proc::
   "Hello World!\n"      puts
   "Other text here!!\n" puts
 end

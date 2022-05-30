@@ -45,7 +45,7 @@ static partial class Firesharp
             file = filepath;
         }
 
-        bool ReadLine()
+        public bool ReadLine()
         {
             if (stream.ReadLine() is string line)
             {
@@ -55,7 +55,8 @@ static partial class Firesharp
                 buffer = line.AsSpan();
                 colNum = 0;
                 parserPos = 0;
-                TrimLeft();
+                
+                if (!TrimLeft()) return ReadLine();
                 return true;
             }
             buffer = ReadOnlySpan<char>.Empty;
@@ -70,15 +71,18 @@ static partial class Firesharp
         public string ReadByPredicate(Predicate<char> pred)
         {
             AdvanceByPredicate(pred);
+            if(colNum == parserPos) parserPos++;
             return buffer.Slice(colNum, parserPos - colNum).ToString();
         }
 
         public bool TrimLeft()
         {
-            if (buffer.Slice(parserPos).Trim().IsEmpty) return false;
+            if (parserPos > buffer.Length - 1 || buffer.Slice(parserPos).Trim().IsEmpty) return false;
 
             AdvanceByPredicate(pred => pred != ' ');
             colNum = parserPos;
+            if (buffer.Slice(parserPos).StartsWith("//")) return false;
+
             return true;
         }
 
@@ -89,7 +93,8 @@ static partial class Firesharp
                 token = default;
                 return false;
             }
-            token = new(ReadByPredicate(pred => pred == ' '), new(file, lineNum, colNum + 1));
+            Predicate<char> pred = (c => c == ' ' || c == ':');
+            token = new(ReadByPredicate(pred), new(file, lineNum, colNum + 1));
             return true;
         }
     }
@@ -149,18 +154,23 @@ static partial class Firesharp
             "else" => KeywordType._else,
             "end"  => KeywordType.end,
             "proc" => KeywordType.proc,
-            "in"   => KeywordType._in,
             "int"  => KeywordType._int,
             "ptr"  => KeywordType._ptr,
             "bool" => KeywordType._bool,
             "->"   => KeywordType.arrow,
-            "memory" => KeywordType.memory,
+            "mem"  => KeywordType.mem,
+            ":"    => KeywordType.colon,
             _ => (KeywordType)(-1)
         });
         return result >= 0;
     }
 
-    static bool TryGetIntrinsic(int index, out int result) => TryGetIntrinsic(wordList[index], out result);
+    static bool TryGetIntrinsic(string word, Loc loc, out Op? result)
+    {
+        var sucess = TryGetIntrinsic(word, out int res);
+        result = new(OpType.intrinsic, res, loc);
+        return sucess;
+    }
 
     private static bool TryGetIntrinsic(string word, out int result)
     {
@@ -189,41 +199,15 @@ static partial class Firesharp
         TokenType._str     => new(OpType.push_str, tok.Operand, tok.Loc),
         TokenType._word    => tok.Operand switch
         {
-            _ when (wordList.Count <= tok.Operand)
-              => (Op?)Error(tok.Loc, $"Unreachable"),
-            _ when TryGetIntrinsic(tok.Operand, out int result)
-              => new(OpType.intrinsic, result, tok.Loc),
-            _ when TryGetGlobalMem(tok.Operand, out int result)
-              => new(OpType.push_global_mem, result, tok.Loc),
-            _ when TryGetProcName(tok.Operand, out int result)
-              => new(OpType.call, result, tok.Loc),
+            _ when (wordList.Count <= tok.Operand) => (Op?)Error(tok.Loc, $"Unreachable"),
+            _ when TryGetIntrinsic(wordList[tok.Operand], tok.Loc, out Op? result) => result,
+            _ when TryGetGlobalMem(wordList[tok.Operand], tok.Loc, out Op? result) => result,
+            _ when TryGetProcName(wordList[tok.Operand], tok.Loc, out Op? result)  => result,
+            _ when TryDefineContext(wordList[tok.Operand], tok.Loc, ref lexer, out Op? result) => result,
             _ => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
         },
         _ => (Op?)Error(tok.Loc, $"Token type not implemented in `DefineOp` yet: {tok.Type}")
     };
-
-    private static bool TryGetProcName(int operand, out int result)
-    {
-        var word = wordList[operand];
-        result = procList.FindIndex(proc => proc.name.Equals(word));
-        return result >= 0;
-    }
-
-    private static bool TryGetGlobalMem(int operand, out int result)
-    {
-        var word = wordList[operand];
-        result = 0;
-        for (int i = 0; i < memList.Count; i++)
-        {
-            (string name, int size) = memList[i];
-            if (!word.Equals(name))
-            {
-                result += ((size + 3)/4)*4;
-            }
-            else return true;
-        }
-        return false;
-    }
 
     static Op? DefineOp(KeywordType type, Loc loc, ref Lexer lexer) => type switch
     {
@@ -232,7 +216,6 @@ static partial class Firesharp
         KeywordType.drop   => new(OpType.drop, loc),
         KeywordType.over   => new(OpType.over, loc),
         KeywordType.rot    => new(OpType.rot, loc),
-        KeywordType.memory => lexer.DefineMemory(loc),
         KeywordType._if    => PushBlock(new(OpType.if_start, loc)),
         KeywordType._else  => PopBlock(loc, "there are no open blocks to close with `else`") switch
         {
@@ -247,24 +230,65 @@ static partial class Firesharp
             {type: OpType.prep_proc} => new(OpType.end_proc, loc),
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
         },
-        KeywordType.proc => PushBlock(lexer.ParseContract(new(OpType.prep_proc, loc))),
         _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
     };
 
-    static Op? ParseContract(this ref Lexer lexer, Op op)
+    static bool TryDefineContext(string word, Loc loc, ref Lexer lexer, out Op? result)
     {
-        string name = "";
+        result = null;
+        if (lexer.ParseNextToken() is IRToken tok
+            && tok.Type is TokenType._keyword
+            && (KeywordType)tok.Operand is KeywordType.colon)
+        {
+            if (lexer.ParseNextToken() is IRToken tokType && tokType.Type is TokenType._keyword)
+            {
+                result = (KeywordType)tokType.Operand switch
+                {
+                    KeywordType.proc => PushBlock(lexer.ParseContract(word, new(OpType.prep_proc, loc))),
+                    KeywordType.mem  => lexer.DefineMemory(word, loc),
+                    {} k => (Op?)Error(loc, $"Keyword not supported in type assignment: {k}")
+                };
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool TryGetProcName(string word, Loc loc, out Op? result)
+    {
+        var index = procList.FindIndex(proc => proc.name.Equals(word));
+        result = new(OpType.call, index, loc);
+        return index >= 0;
+    }
+
+    static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
+    {
+        int res = 0;
+        for (int i = 0; i < memList.Count; i++)
+        {
+            (string name, int size) = memList[i];
+            if (!word.Equals(name))
+            {
+                res += ((size + 3)/4)*4;
+            }
+            else
+            {
+                result = new (OpType.push_global_mem, res, loc);
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
+
+    static Op? ParseContract(this ref Lexer lexer, string name, Op op)
+    {
         List<TokenType> ins = new();
         List<TokenType> outs = new();
         var foundArrow = false;
 
-        if(lexer.ExpectToken(op.loc, TokenType._word, "Expected proc name after `proc`") is IRToken nameTok)
-        {
-            name = wordList[nameTok.Operand];
-        }
-
-        var sb = new StringBuilder("Expected a proc contract or keyword `in` after procedure definition, but found");
-
+        lexer.ExpectKeyword(op.loc, KeywordType.colon, "Expected `:` after keyword `proc`");
+        var sb = new StringBuilder("Expected a proc contract or keyword `:` after procedure definition, but found");
         while(lexer.ParseNextToken() is IRToken tok)
         {
             if(tok is {Type: TokenType._keyword} && (KeywordType)tok.Operand is KeywordType typ)
@@ -281,7 +305,7 @@ static partial class Firesharp
                     else outs.Add(key);
                 }
                 else if (typ is KeywordType.arrow) foundArrow = true;
-                else if (typ is KeywordType._in)
+                else if (typ is KeywordType.colon)
                 {
                     procList.Add(new (name, op, new(ins, outs)));
                     op.operand = procList.Count -1;
@@ -314,7 +338,7 @@ static partial class Firesharp
             sb.Append($"Expected type to be a `{TypeNames(expected)}`, but found ");
             errorLoc = token.Loc;
 
-            if (token.Type.Equals(TokenType._word) && TryGetIntrinsic(token.Operand, out int intrinsic))
+            if (token.Type.Equals(TokenType._word) && TryGetIntrinsic(wordList[token.Operand], out int intrinsic))
             {
                 sb.Append($"the Intrinsic `{(IntrinsicType)intrinsic}`");
             }
@@ -336,15 +360,15 @@ static partial class Firesharp
         return token;
     }
 
-    static Op? DefineMemory(this ref Lexer lexer, Loc loc)
+    static Op? DefineMemory(this ref Lexer lexer, string word, Loc loc)
     {
-        if ((lexer.ExpectToken(loc, TokenType._word, "Expected memory name after `memory`"),
-            lexer.ExpectToken(loc, TokenType._int, "Expected memory size after memory name"),
+        if ((lexer.ExpectKeyword(loc, KeywordType.colon, "Expected `:` after `mem`"),
+            lexer.ExpectToken(loc, TokenType._int, "Expected memory size after `:`"),
             lexer.ExpectKeyword(loc, KeywordType.end, "Expected `end` after memory size")) is
-            (IRToken nameToken, IRToken valueToken, IRToken endToken))
+            (_, IRToken valueToken, IRToken endToken))
         {
             var size = ((valueToken.Operand + 3)/4)*4;
-            memList.Add((wordList[nameToken.Operand], size));
+            memList.Add((word, size));
             totalMemSize += size;
         }
         return null;
@@ -370,6 +394,6 @@ static partial class Firesharp
 
     static bool ExpectProc(TokenType type, Loc loc, string errorText)
     {
-        return (!(type is TokenType._keyword || PeekBlock(loc, errorText) is Op));
+        return (!(type is TokenType._keyword or TokenType._word || PeekBlock(loc, errorText) is Op));
     }
 }

@@ -150,13 +150,13 @@ static partial class Firesharp
         _else,
         end,
         proc,
-        _in,
         arrow,
-        memory,
+        mem,
         dup,
         drop,
         swap,
         over,
         rot,
+        colon,
     }
 }
