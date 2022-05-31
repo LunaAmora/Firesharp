@@ -12,8 +12,12 @@ You will need to have the following:
 - [WABT](https://github.com/WebAssembly/wabt)
 - [WASMTIME](https://wasmtime.dev/)
 
-Then, you can compile the `test.fire` file with:
+Then, you can compile the [test.fire](./src/test.fire) file with:
 
 ```console
 $ dotnet run -com src/test.fire
+... program logs ...
+Hello World!
+Other text here!!
 ```
+
