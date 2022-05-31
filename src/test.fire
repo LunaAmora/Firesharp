@@ -8,7 +8,7 @@ ptr+ : proc : ptr int -> ptr : #ptr + end
 puts : proc : int ptr :
   ciovec:  mem: 8 end
   written: mem: 4 end
-  ciovec !ptr 
+  ciovec !ptr
   ciovec 4 ptr+ !int
   1 ciovec 1 written fd_write drop
 end

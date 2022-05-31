@@ -145,7 +145,7 @@ static partial class Firesharp
             {
                 lexer.AdvanceByPredicate(pred => pred == '\"');
                 name = lexer.ReadByPredicate(pred => pred == ' ');
-                Assert(name.EndsWith('\"'), tok.loc, "Missing clossing '\"' in string literal");
+                Assert(name.EndsWith('\"'), tok.loc, "Missing closing '\"' in string literal");
             }
              
             name = name.Trim('\"');
@@ -259,9 +259,9 @@ static partial class Firesharp
 
     static bool TryGetIntrinsic(string word, Loc loc, out Op? result)
     {
-        var sucess = TryGetIntrinsic(word, out IntrinsicType res);
+        var success = TryGetIntrinsic(word, out IntrinsicType res);
         result = new(OpType.intrinsic, (int)res, loc);
-        return sucess;
+        return success;
     }
 
     static bool TryDefineContext(string word, Loc loc, out Op? result)

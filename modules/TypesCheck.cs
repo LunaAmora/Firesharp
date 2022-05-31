@@ -5,7 +5,7 @@ using DataStack = Stack<(TokenType type, Loc loc)>;
 static partial class Firesharp
 {
     static DataStack dataStack = new ();
-    static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshothing the datastack is really dumb, change later
+    static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshotting the datastack is really dumb, change later
     static Dictionary<Op, (int, int)> blockContacts = new ();
 
     static void TypeCheck(List<Op> program)
@@ -120,10 +120,10 @@ static partial class Firesharp
 
             (var oldStack, var startOp) = blockStack.Pop();
 
-            var blockImput  = oldStack.Except(expected).Count();
+            var blockInput  = oldStack.Except(expected).Count();
             var blockOutput = expected.Except(oldStack).Count();
 
-            blockContacts.Add(startOp, (blockImput, blockOutput));
+            blockContacts.Add(startOp, (blockInput, blockOutput));
         },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
@@ -192,7 +192,7 @@ static partial class Firesharp
             ArityType.any  => true,
             ArityType.same => ExpectArity(stack, arityN, loc),
             _ => false
-        }, loc, "Arity check failled");
+        }, loc, "Arity check failed");
     }
 
     static bool ExpectArity(this DataStack stack, int arityN, Loc loc)
