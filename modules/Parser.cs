@@ -284,75 +284,71 @@ static partial class Firesharp
     static bool TryDefineContext(string word, Loc loc, out Op? result)
     {
         result = null;
-        if (NextIRToken() is IRToken tok
-            && tok.Type is TokenType._keyword
-            && (KeywordType)tok.Operand is KeywordType.colon)
+        var colonCount = 0;
+        KeywordType? context = null;
+        for (int i = 0; i < IRTokens.Count; i++)
         {
-            var colonCount = 0;
-            KeywordType? context = null;
-            for (int i = 0; i < IRTokens.Count; i++)
+            var token = IRTokens.ElementAt(i);
+            if (token.Type is not TokenType._keyword)
             {
-                var token = IRTokens.ElementAt(i);
-                if (token.Type is not TokenType._keyword)
+                if(colonCount == 0)
                 {
-                    if(colonCount == 0)
-                    {
-                        Error(token.Loc, $"Non-keyword found on type declaration: `{token.Type}`");
-                        return false;
-                    }
-                    else if(colonCount == 1 && token.Type is TokenType._int)
-                    {
-                        context = KeywordType.mem;
-                        break;
-                    }
-                    else
-                    {
-                        var invalidToken = token.Type is TokenType._word ? 
-                            wordList[token.Operand] : token.Type.ToString();
-                        Error(token.Loc, $"Invalid Token found on context declaration: `{invalidToken}`");
-                        return false;
-                    }
-                }
-                
-                context = (KeywordType)token.Operand;
-
-                if(colonCount == 0 && context is KeywordType.proc or KeywordType.mem)
-                {
-                    NextIRToken();
-                    break;
-                }
-                else if(context == KeywordType.colon) colonCount++;
-                else if(context == KeywordType.end)
-                {
-                    Error(tok.Loc, $"Missing body or contract necessary to infer the type of the word: `{word}`");
+                    Error(token.Loc, $"Non-keyword found on type declaration: `{token.Type}`");
                     return false;
                 }
-
-                if(colonCount == 2)
+                else if(colonCount == 1 && token.Type is TokenType._int)
                 {
-                    if(i == 1)
-                    {
-                        result = DefineProc(word, new(OpType.prep_proc, loc), null);
-                        NextIRToken();
-                        NextIRToken();
-                        return true;
-                    }
-                    
-                    context = KeywordType.proc;
+                    context = KeywordType.mem;
                     break;
                 }
-
+                else
+                {
+                    var invalidToken = token.Type is TokenType._word ? 
+                        wordList[token.Operand] : token.Type.ToString();
+                    Error(token.Loc, $"Invalid Token found on context declaration: `{invalidToken}`");
+                    return false;
+                }
             }
             
-            result = context switch
-            {
-                KeywordType.proc => ParseProcContract(word, new(OpType.prep_proc, loc)),
-                KeywordType.mem  => DefineMemory(word, loc),
-                {} k => (Op?)Error(loc, $"Keyword not supported in type assignment: {k}"),
-                _ => null
-            };
-            return true;
+            context = (KeywordType)token.Operand;
 
+            if(colonCount == 0 && context is KeywordType.proc or KeywordType.mem)
+            {
+                NextIRToken();
+                break;
+            }
+            else if(context == KeywordType.colon) colonCount++;
+            else if(context == KeywordType.end)
+            {
+                Error(token.Loc, $"Missing body or contract necessary to infer the type of the word: `{word}`");
+                return false;
+            }
+
+            if(colonCount == 2)
+            {
+                if(i == 1)
+                {
+                    result = DefineProc(word, new(OpType.prep_proc, loc), null);
+                    NextIRToken();
+                    NextIRToken();
+                    return true;
+                }
+                
+                context = KeywordType.proc;
+                break;
+            }
+        }
+
+        if(context is KeywordType.proc)
+        {
+            result = ParseProcContract(word, new(OpType.prep_proc, loc));
+            return result != null;
+        }
+        
+        if(context is KeywordType.mem)
+        {
+            DefineMemory(word, loc);
+            return true;
         }
         return false;
     }
@@ -454,7 +450,7 @@ static partial class Firesharp
         {
             if (token.Type.Equals(expected)) return token;
 
-            sb.Append($"Expected type to be a `{TypeNames(expected)}`, but found ");
+            sb.Append($"Expected {TypeNames(expected)} {notFound}, but found ");
             errorLoc = token.Loc;
 
             if (token.Type.Equals(TokenType._word) && TryGetIntrinsic(wordList[token.Operand], out IntrinsicType intrinsic))
@@ -479,7 +475,7 @@ static partial class Firesharp
         return token;
     }
 
-    static Op? DefineMemory(string word, Loc loc)
+    static void DefineMemory(string word, Loc loc)
     {
         if ((ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`"),
             ExpectToken(loc, TokenType._int, "memory size after `:`"),
@@ -498,7 +494,6 @@ static partial class Firesharp
                 totalMemSize += size;
             }
         }
-        return null;
     }
 
     static Op? PushBlock(Op? op)
