@@ -4,7 +4,7 @@ using DataList = List<(string name, int offset)>;
 
 static partial class Firesharp
 {
-    record Proc(string name, Op proc_start, Contract contract)
+    record Proc(string name, Contract? contract)
     {
         public DataList localMemNames = new();
         public int procMemSize = 0;

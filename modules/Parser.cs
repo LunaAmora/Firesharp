@@ -60,6 +60,23 @@ static partial class Firesharp
         return null;
     }
     
+    static int TokensUntilPred(Predicate<IRToken> counter, Predicate<IRToken> pred)
+    {
+        var result = 0;
+        for (int i = 0; i < IRTokens.Count; i++)
+        {
+            var current = IRTokens.ElementAt(i);
+            if(counter(current)) result++;
+            if(pred(current)) break;
+        }
+        return result;
+    }
+
+    static int PredUntilEnd(Predicate<IRToken> pred)
+    {
+        return TokensUntilPred(pred, end => end.Type is TokenType._keyword && (KeywordType)end.Operand is KeywordType.end);
+    }
+    
     ref struct Lexer
     {
         ReadOnlySpan<char> buffer = ReadOnlySpan<char>.Empty;
@@ -271,16 +288,71 @@ static partial class Firesharp
             && tok.Type is TokenType._keyword
             && (KeywordType)tok.Operand is KeywordType.colon)
         {
-            if (NextIRToken() is IRToken tokType && tokType.Type is TokenType._keyword)
+            var colonCount = 0;
+            KeywordType? context = null;
+            for (int i = 0; i < IRTokens.Count; i++)
             {
-                result = (KeywordType)tokType.Operand switch
+                var token = IRTokens.ElementAt(i);
+                if (token.Type is not TokenType._keyword)
                 {
-                    KeywordType.proc => ParseProcContract(word, new(OpType.prep_proc, loc)),
-                    KeywordType.mem  => DefineMemory(word, loc),
-                    {} k => (Op?)Error(loc, $"Keyword not supported in type assignment: {k}")
-                };
-                return true;
+                    if(colonCount == 0)
+                    {
+                        Error(token.Loc, $"Non-keyword found on type declaration: `{token.Type}`");
+                        return false;
+                    }
+                    else if(colonCount == 1 && token.Type is TokenType._int)
+                    {
+                        context = KeywordType.mem;
+                        break;
+                    }
+                    else
+                    {
+                        var invalidToken = token.Type is TokenType._word ? 
+                            wordList[token.Operand] : token.Type.ToString();
+                        Error(token.Loc, $"Invalid Token found on context declaration: `{invalidToken}`");
+                        return false;
+                    }
+                }
+                
+                context = (KeywordType)token.Operand;
+
+                if(colonCount == 0 && context is KeywordType.proc or KeywordType.mem)
+                {
+                    NextIRToken();
+                    break;
+                }
+                else if(context == KeywordType.colon) colonCount++;
+                else if(context == KeywordType.end)
+                {
+                    Error(tok.Loc, $"Missing body or contract necessary to infer the type of the word: `{word}`");
+                    return false;
+                }
+
+                if(colonCount == 2)
+                {
+                    if(i == 1)
+                    {
+                        result = DefineProc(word, new(OpType.prep_proc, loc), null);
+                        NextIRToken();
+                        NextIRToken();
+                        return true;
+                    }
+                    
+                    context = KeywordType.proc;
+                    break;
+                }
+
             }
+            
+            result = context switch
+            {
+                KeywordType.proc => ParseProcContract(word, new(OpType.prep_proc, loc)),
+                KeywordType.mem  => DefineMemory(word, loc),
+                {} k => (Op?)Error(loc, $"Keyword not supported in type assignment: {k}"),
+                _ => null
+            };
+            return true;
+
         }
         return false;
     }
@@ -342,14 +414,12 @@ static partial class Firesharp
                     if(!foundArrow) ins.Add(key);
                     else outs.Add(key);
                 }
-                else if (typ is KeywordType.arrow) foundArrow = true;
-                else if (typ is KeywordType.colon)
+                else if (typ is KeywordType.arrow)
                 {
-                    currentProc = new (name, op, new(ins, outs));
-                    procList.Add(currentProc);
-                    op.operand = procList.Count -1;
-                    return PushBlock(op);
+                    if(!foundArrow) foundArrow = true;
+                    else return (Op?)Error(tok.Loc, "Duplicated `->` found on procedure definition");
                 }
+                else if (typ is KeywordType.colon) return DefineProc(name, op, new(ins, outs));
                 else
                 {
                     sb.Append($": `{typ}`");
@@ -364,6 +434,16 @@ static partial class Firesharp
         }
         sb.Append(" nothing");
         return (Op?)Error(op.loc, sb.ToString());
+    }
+
+    static Op? DefineProc(string name, Op op, Contract? contract)
+    {
+        Assert(!insideProc, op.loc, "Cannot define a procedure inside of another procedure");
+        currentProc = new(name, contract);
+        procList.Add(currentProc);
+        op.operand = procList.Count - 1;
+        
+        return PushBlock(op);
     }
 
     static IRToken? ExpectToken(Loc loc, TokenType expected, string notFound)

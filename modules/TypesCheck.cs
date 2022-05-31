@@ -65,30 +65,38 @@ static partial class Firesharp
         OpType.push_local_mem => () => dataStack.Push((TokenType._ptr, op.loc)),
         OpType.call => () => 
         {
-            var proc = procList[op.operand].contract;
-            var ins = new List<TokenType>(proc.ins);
-            ins.Reverse();
-            dataStack.ExpectArity(op.loc, ins.ToArray());
-            ins.ForEach(_ => dataStack.Pop());
-            var outs = proc.outs;
-            for (int i = 0; i < outs.Count; i++) dataStack.Push((outs[i], op.loc));
+            if (procList[op.operand].contract is Contract contr)
+            {
+                var ins = new List<TokenType>(contr.ins);
+                ins.Reverse();
+                dataStack.ExpectArity(op.loc, ins.ToArray());
+                ins.ForEach(_ => dataStack.Pop());
+                var outs = contr.outs;
+                for (int i = 0; i < outs.Count; i++) dataStack.Push((outs[i], op.loc));
+            }
         },
         OpType.prep_proc => () =>
         {
-            Assert(!insideProc, op.loc, "Cannot define a procedure inside of another procedure");
             currentProc = procList[op.operand];
-            currentProc.contract.ins.ForEach(type => dataStack.Push((type, op.loc)));
+            if (currentProc.contract is Contract contr)
+            {
+                contr.ins.ForEach(type => dataStack.Push((type, op.loc)));
+            }
         },
         OpType.end_proc => () =>
         {
-            Assert(insideProc, "Unreachable");
-            if(currentProc is Proc proc)
+            TokenType[] endStack;
+            if(currentProc is Proc proc && proc.contract is Contract contr)
             {
-                var outs = proc.contract.outs;
-                outs.Reverse();
-                dataStack.ExpectStackExact(op.loc, outs.ToArray());
-                outs.ForEach(_ => dataStack.Pop());
+                var ou = contr.outs;
+                ou.Reverse();
+                endStack = ou.ToArray();
             }
+            else endStack = new TokenType[0];
+
+            dataStack.ExpectStackExact(op.loc, endStack);
+            foreach (var _ in endStack) dataStack.Pop();
+            
             currentProc = null;
             dataStack = new();
         },

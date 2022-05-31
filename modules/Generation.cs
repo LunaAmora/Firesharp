@@ -126,17 +126,17 @@ static partial class Firesharp
     static string AppendProc(this string str, Op op)
     {
         var proc = procList[op.operand];
-        var contract = proc.contract;
-        (int ins, int outs) contr = (contract.ins.Count, contract.outs.Count);
-        var sb = new StringBuilder(ContractString($"{str}{proc.name}", contr));
-
-        if(proc.procMemSize > 0)
+        var sb = new StringBuilder($"{str}{proc.name}");
+        if(proc.contract is Contract contract)
         {
-            sb.Append($"\n  i32.const {proc.procMemSize} call $aloc_local");
+            (int ins, int outs) contr = (contract.ins.Count, contract.outs.Count);
+            AppendContract(sb, contr);
+            if(contr.ins > 0) sb.Append("\n ");
+            for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         }
+        
+        if(proc.procMemSize > 0) sb.Append($"\n  i32.const {proc.procMemSize} call $aloc_local");
 
-        if(contr.ins > 0) sb.Append("\n ");
-        for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         return sb.ToString();
     }
 
@@ -144,14 +144,14 @@ static partial class Firesharp
     {
         if(blockContacts.ContainsKey(op) && blockContacts[op] is (int ins, int outs) contract)
         {
-            return ContractString(str, contract);
+            var sb = new StringBuilder(str);
+            return AppendContract(sb, contract).ToString();
         }
         return str;
     }
 
-    private static string ContractString(string str, (int ins, int outs) contract)
+    static StringBuilder AppendContract(StringBuilder sb, (int ins, int outs) contract)
     {
-        var sb = new StringBuilder(str);
         if (contract.ins > 0)
         {
             sb.Append(" (param");
@@ -164,6 +164,6 @@ static partial class Firesharp
             sb.Insert(sb.Length, " i32", contract.outs);
             sb.Append(")");
         }
-        return sb.ToString();
+        return sb;
     }
 }
