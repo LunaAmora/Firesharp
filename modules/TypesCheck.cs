@@ -107,7 +107,7 @@ static partial class Firesharp
         },
         OpType._else => () =>
         {
-            (var oldStack, var startOp) = blockStack.Pop();
+            (var oldStack, var startOp) = blockStack.Peek();
             blockStack.Push((dataStack, startOp));
             dataStack = new (oldStack);
         },
@@ -131,10 +131,13 @@ static partial class Firesharp
 
             ExpectStackArity(expected, dataStack, op.loc, 
             $"Both branches of the if-block must produce the same types of the arguments on the data stack");
-            
-            var ins = Math.Abs(Math.Min(dataStack.minCount, expected.minCount));
-            var outs = ins + Math.Max(dataStack.stackCount, expected.stackCount);
-            blockContacts.Add(startOp, (ins, outs));
+            var ins = Math.Min(dataStack.minCount, expected.minCount);
+            var outs = Math.Max(dataStack.stackCount, expected.stackCount) - ins;
+            blockContacts.Add(startOp, (-ins, outs));
+
+            var oldStack = blockStack.Pop().stack;
+            dataStack.minCount   = oldStack.stackCount + ins;
+            dataStack.stackCount = oldStack.stackCount;
         },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
