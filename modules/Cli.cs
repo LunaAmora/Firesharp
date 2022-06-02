@@ -37,6 +37,19 @@ static partial class Firesharp
         }
     }
 
+    static void Write(string format, params object?[]? arg) => Console.WriteLine(format, arg);
+    static void Info(string format, params object?[]? arg)
+    {
+        Console.Write("[INFO] ");
+        Write(format, arg);
+    }
+    
+    static void Info(Loc loc, string format, params object?[]? arg)
+    {
+        Console.Write($"{loc} [INFO] ");
+        Write(format, arg);
+    }
+
     static void Exit() => Environment.Exit(0);
 
     static string Error(int exitCode, params string[] errorText)

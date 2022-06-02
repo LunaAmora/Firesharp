@@ -116,6 +116,9 @@ static partial class Firesharp
         push_cstr,
         push_local_mem,
         push_global_mem,
+        global_var,
+        store_var,
+        load_var,
         intrinsic,
         dup,
         drop,
@@ -123,6 +126,7 @@ static partial class Firesharp
         over,
         rot,
         call,
+        equal,
         prep_proc,
         if_start,
         _else,
@@ -137,7 +141,6 @@ static partial class Firesharp
         minus,
         times,
         div,
-        equal,
         cast_bool,
         cast_ptr,
         store32,
@@ -147,6 +150,7 @@ static partial class Firesharp
 
     enum KeywordType
     {
+        _none,
         _int,
         _ptr,
         _bool,
@@ -162,5 +166,6 @@ static partial class Firesharp
         over,
         rot,
         colon,
+        equal
     }
 }

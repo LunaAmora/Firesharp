@@ -1,5 +1,6 @@
 true  : -> bool : 1 #bool end
 false : -> bool : 0 #bool end
+null  : -> ptr  : 0 #ptr end
 !bool : bool ptr : !32 end
 !ptr  : ptr  ptr : !32 end
 !int  : int  ptr : !32 end
@@ -19,7 +20,13 @@ puts : int ptr :
   1 ciovec 1 written fd_write drop
 end
 
+value int := 69 end
+
 start ::
-  "Hello World!\n"      puts
-  "Other text here!!\n" puts
+  420 !value
+  value 69 = if
+    "Hello World!\n"      puts
+  else
+    "Other text here!!\n" puts
+  end
 end

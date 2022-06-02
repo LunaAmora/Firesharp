@@ -80,12 +80,15 @@ static partial class Firesharp
 
     static string GenerateOp(Op op) => op.type switch
     {
+        OpType.load_var        => $"  global.get ${varList[op.operand].name}",
+        OpType.store_var       => $"  global.set ${varList[op.operand].name}",
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
-        OpType.push_local_mem => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
+        OpType.push_local_mem  => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
         OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
         OpType.push_int  => $"  i32.const {op.operand}",
         OpType.push_ptr  => $"  i32.const {op.operand}",
         OpType.push_bool => $"  i32.const {op.operand}",
+        OpType.global_var => $"(global ${varList[op.operand].name} (mut i32) (i32.const {varList[op.operand].value}))\n",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",
@@ -93,6 +96,7 @@ static partial class Firesharp
         OpType.drop      => "  drop",
         OpType.call      => $"  call ${procList[op.operand].name}",
         OpType.prep_proc => "(func $".AppendProc(op),
+        OpType.equal     => "  i32.eq",
         OpType.if_start  => "  if".AppendContract(op),
         OpType._else     => "  else",
         OpType.end_if    or 
@@ -102,7 +106,6 @@ static partial class Firesharp
         {
             IntrinsicType.plus      => "  i32.add",
             IntrinsicType.minus     => "  i32.sub",
-            IntrinsicType.equal     => "  i32.eq",
             IntrinsicType.load32    => "  i32.load",
             IntrinsicType.store32   => "  call $swap\n  i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",

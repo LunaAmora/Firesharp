@@ -22,6 +22,13 @@ static partial class Firesharp
             dataStack.Push(TokenType._ptr, op.loc);
         },
         OpType.push_cstr => () => dataStack.Push(TokenType._ptr, op.loc),
+        OpType.global_var => () => {},
+        OpType.load_var   => () => dataStack.Push(varList[op.operand].type, op.loc),
+        OpType.store_var  => () => 
+        {
+            dataStack.ExpectArity(1, varList[op.operand].type, op.loc);
+            dataStack.Pop();
+        },
         OpType.swap => () => 
         {
             dataStack.ExpectArity(2, ArityType.any, op.loc);
@@ -139,6 +146,13 @@ static partial class Firesharp
             dataStack.minCount   = oldStack.stackCount + ins;
             dataStack.stackCount = oldStack.stackCount;
         },
+        OpType.equal => () =>
+        {
+            dataStack.ExpectArity(2, ArityType.same, op.loc);
+            dataStack.Pop();
+            dataStack.Pop();
+            dataStack.Push(TokenType._bool, op.loc);
+        },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
             IntrinsicType.plus => () =>
@@ -152,13 +166,6 @@ static partial class Firesharp
                 dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
                 dataStack.Push(dataStack.Pop().type, op.loc);
-            },
-            IntrinsicType.equal => () =>
-            {
-                dataStack.ExpectArity(2, ArityType.same, op.loc);
-                dataStack.Pop();
-                dataStack.Pop();
-                dataStack.Push(TokenType._bool, op.loc);
             },
             IntrinsicType.cast_bool => () =>
             {
@@ -200,13 +207,19 @@ static partial class Firesharp
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)
     {
-        Assert(stack.Count() >= arityN, loc, "Stack has less elements than expected");
+        stack.ExpectStackSize(arityN, loc);
         Assert(arityT switch
         {
             ArityType.any  => true,
             ArityType.same => ExpectArity(stack, arityN, loc),
             _ => false
         }, loc, "Arity check failed");
+    }
+
+    static void ExpectStackSize(this DataStack stack, int arityN, Loc loc)
+    {
+        Assert(stack.Count() >= arityN, loc, "Stack has less elements than expected",
+        $"{loc} [INFO] Expected `{arityN}` elements, but found `{stack.Count()}`");
     }
 
     static bool ExpectArity(this DataStack stack, int arityN, Loc loc)
@@ -232,7 +245,7 @@ static partial class Firesharp
     
     static bool ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
     {
-        Assert(stack.Count() >= contract.Count(), loc, "Stack has less elements than expected");
+        stack.ExpectStackSize(contract.Count(), loc);
         for (int i = 0; i < contract.Count(); i++)
         {
             var a = stack.ElementAt(i);
