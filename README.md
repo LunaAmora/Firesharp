@@ -18,6 +18,4 @@ Then, you can compile the [test.fire](./src/test.fire) file with:
 $ dotnet run -com src/test.fire
 ... program logs ...
 Hello World!
-Other text here!!
 ```
-

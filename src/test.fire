@@ -20,13 +20,13 @@ puts : int ptr :
   1 ciovec 1 written fd_write drop
 end
 
-value int := 69 end
+value int := 420 end
 
 start ::
-  420 !value
+  69 !value
   value 69 = if
-    "Hello World!\n"      puts
+    "Hello World!\n"
   else
-    "Other text here!!\n" puts
-  end
+    "Other text here!!\n"
+  end puts
 end
