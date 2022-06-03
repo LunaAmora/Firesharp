@@ -2,12 +2,15 @@ namespace Firesharp;
 
 using MemList = List<(string name, int offset)>;
 using TypeList = List<(string name, int value, TokenType type)>;
+using StructVars = List<(string name, int type)>;
 
 static partial class Firesharp
 {
+    static List<StructType> structList = new();
     static List<Proc> procList = new();
     static Stack<Op> opBlock = new();
 
+    static StructVars structVarsList = new();
     static TypeList constList = new();
     static TypeList varList = new();
     
@@ -172,25 +175,62 @@ static partial class Firesharp
 
     static bool TryGetGlobalVar(string word, Loc loc, out Op? result)
     {
-        var index = varList.FindIndex(mem => word.EndsWith(mem.name) && word.Length - mem.name.Length <= 1);
+        var store = false;
+        if (word.StartsWith('!'))
+        {
+            word = word.Split('!')[1];
+            store = true;
+        }
+
+        var index = varList.FindIndex(val => word.Equals(val.name));
         if (index != - 1)
         {
-            var global = varList[index];
-            if(word.Equals(global.name))
+            if (store) result = new(OpType.store_var, index, loc);
+            else       result = new(OpType.load_var, index, loc);
+            return true;
+        }
+        else if(TryGetStructVars(word, out StructType structType))
+        {
+            List<StructMember> members = new (structType.members);
+            if(store) members.Reverse();
+
+            foreach (var member in members)
             {
-                result = new(OpType.load_var, index, loc);
-                return true;
+                index = varList.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
+                if (store) program.Add(new(OpType.store_var, index, loc));
+                else       program.Add(new(OpType.load_var, index, loc));
             }
-            else if (word.StartsWith('!'))
-            {
-                result = new(OpType.store_var, index, loc);
-                return true;
-            }
+            result = null;
+            return true;
         }
         result = null;
         return false;
     }
 
+    static bool TryGetStructVars(string word, out StructType result)
+    {
+        var index = structVarsList.FindIndex(vars => vars.name.Equals(word));
+        if (index != - 1)
+        {
+            var res = structVarsList[index];
+            return TryGetTypeName(wordList[res.type], out result);
+        }
+        result = default;
+        return false;
+    }
+
+    static bool TryGetTypeName(string word, out StructType result)
+    {
+        var index = structList.FindIndex(type => type.name.Equals(word));
+        if (index != - 1)
+        {
+            result = structList[index];
+            return true;
+        }
+        result = default;
+        return false;
+    }
+    
     static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
     {
         var index = memList.FindIndex(mem => mem.name.Equals(word));
@@ -213,7 +253,17 @@ static partial class Firesharp
             var token = IRTokenAt(i);
             if (token.Type is not TokenType._keyword)
             {
-                if(colonCount == 0) return false;
+                if(colonCount == 0)
+                {
+                    if(token.Type is TokenType._word
+                        && TryGetTypeName(wordList[token.Operand], out StructType structType))
+                    {
+                        NextIRToken();
+                        ParseStructVar(word, loc, token, structType);
+                        return true;
+                    }
+                    else return false;
+                }
                 else if(colonCount == 1 && token.Type is TokenType._int)
                 {
                     var lastToken = IRTokenAt(i-1);
@@ -227,7 +277,7 @@ static partial class Firesharp
                 }
                 else if(colonCount == 1 && token.Type is TokenType._word)
                 {
-                    Error("not implemented type inference for structs yet");
+                    Error(loc, "Type inference for structs is not implemented yet");
                 }
                 else
                 {
@@ -283,18 +333,51 @@ static partial class Firesharp
         };
     }
 
+    static void ParseStructVar(string word, Loc loc, IRToken token, StructType structType)
+    {
+        ExpectKeyword(loc, KeywordType.colon, "`:` after variable type definition");
+        ExpectKeyword(loc, KeywordType.equal, "`=` after keyword `:`");
+        ExpectKeyword(loc, KeywordType.end, "`end` after variable declaration");
+        foreach (var member in structType.members)
+        {
+            varList.Add(($"{word}.{member.name}", member.defaultValue, member.type));
+            program.Add(new(OpType.global_var, varList.Count - 1, token.Loc));
+        }
+        structVarsList.Add((word, token.Operand));
+    }
+
     private static bool ParseStruct(string word, Loc loc)
     {
-        Error(loc, "Struct parsing is not implemented yet");
+        var members = new List<StructMember>();
+        ExpectKeyword(loc, KeywordType.colon, "`:` after keyword `struct`");
+        while(PeekIRToken() is IRToken token)
+        {
+            if(token.Type is TokenType._keyword)
+            {
+                ExpectKeyword(loc, KeywordType.end, "`end` after struct declaration");
+                structList.Add(new (word, members));
+                return true;
+            }
+
+            var name = ExpectToken(loc, TokenType._word, "struct member name");
+            var type = ExpectKeyword(loc, KeywordType.dataTypes, "struct member type");
+
+            if(name is {Operand: int index} && type is {Operand: int keyType}
+                && KeywordToType((KeywordType)keyType, out TokenType tokType))
+            {
+                members.Add(new (wordList[index], tokType));
+            }
+        }
+        Error(loc, "Expected struct members or `end` after struct declaration");
         return false;
     }
 
     static bool ParseConstOrVar(string word, Loc loc, TokenType tokType, ref Op? result)
     {
         ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
-        var irt = ExpectKeyword(loc, KeywordType.colon | KeywordType.equal, $"`:` or `=` after `{TypeNames(tokType)}`");
+        var assignType = ExpectKeyword(loc, KeywordType.assignTypes, $"`:` or `=` after `{TypeNames(tokType)}`");
 
-        if (irt is IRToken ir && (KeywordType)ir.Operand is KeywordType keyword)
+        if (assignType is {Operand: int op} && (KeywordType)op is KeywordType keyword)
         {
             var value = 0;
             if (PeekIRToken() is IRToken valueToken && valueToken.Type ==  tokType)
@@ -448,5 +531,35 @@ static partial class Firesharp
     {
         Assert(opBlock.Count > 0, loc, $"There are no open blocks to close with `{closingType}`");
         return opBlock.Pop();
+    }
+
+    public struct StructType
+    {
+        public string name;
+        public List<StructMember> members;
+
+        public StructType(string Name, List<StructMember> Members)
+        {
+            name = Name;
+            members = Members;
+        }
+    }
+
+    public struct StructMember
+    {
+        public string name;
+        public TokenType type;
+        public int defaultValue = 0;
+
+        public StructMember(string Name, TokenType Keyword)
+        {
+            name = Name;
+            type = Keyword;
+        }
+
+        public StructMember(String Name, TokenType Keyword, int DefaultValue) : this(Name, Keyword)
+        {
+            defaultValue = DefaultValue;
+        }
     }
 }

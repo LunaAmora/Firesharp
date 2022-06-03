@@ -24,11 +24,20 @@ property_value proc : -> int : 69 end
 constant_value int :: 69 end
 variable_value int := 420 end
 
+str struct :
+  len int
+  data ptr
+end
+
+string_toPrint str := end
+
 start proc ::
   constant_value !variable_value
-  variable_value 69 = if
+  variable_value  property_value = if
     "Hello World!\n"
   else
     "Other text here!!\n"
-  end puts
+  end !string_toPrint
+
+  string_toPrint puts
 end

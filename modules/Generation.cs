@@ -90,7 +90,7 @@ static partial class Firesharp
         OpType.push_int  => $"  i32.const {op.operand}",
         OpType.push_ptr  => $"  i32.const {op.operand}",
         OpType.push_bool => $"  i32.const {op.operand}",
-        OpType.global_var => $"(global ${varList[op.operand].name} (mut i32) (i32.const {varList[op.operand].value}))\n",
+        OpType.global_var => $"(global ${varList[op.operand].name} (mut i32) (i32.const {varList[op.operand].value}))",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",

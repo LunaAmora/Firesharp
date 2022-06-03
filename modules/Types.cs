@@ -71,7 +71,6 @@ static partial class Firesharp
         _str,
         _ptr,
         _word,
-        _type,
         _keyword,
         _any
     }
@@ -129,7 +128,7 @@ static partial class Firesharp
     }
 
     [Flags]
-    enum KeywordType
+    public enum KeywordType
     {
         _int,
         _ptr,
@@ -137,9 +136,7 @@ static partial class Firesharp
         _if,
         _else,
         end,
-        proc,
         arrow,
-        mem,
         dup,
         drop,
         swap,
@@ -147,6 +144,11 @@ static partial class Firesharp
         rot,
         colon,
         equal,
+        proc,
+        mem,
         _struct,
+        wordTypes = proc | mem | _struct,
+        dataTypes = _int | _ptr | _bool,
+        assignTypes = equal | colon,
     }
 }
