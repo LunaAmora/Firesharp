@@ -41,6 +41,13 @@ static partial class Firesharp
     }
     
     static IRToken IRTokenAt(int i) => IRTokens.ElementAt(i);
+
+    static IRToken? PeekIRToken()
+    {
+        if (IRTokens.Count > 0) return IRTokens.First();
+        return null;
+    }
+
     static IRToken? NextIRToken()
     {
         if (IRTokens.Count > 0) return IRTokens.Dequeue();
@@ -289,17 +296,22 @@ static partial class Firesharp
 
         if (irt is IRToken ir && (KeywordType)ir.Operand is KeywordType keyword)
         {
-            if (ExpectToken(loc, tokType, $"value after `{keyword}`") is not IRToken valueToken) return false;
-            ExpectKeyword(loc, KeywordType.end, "`end` after var value");
+            var value = 0;
+            if (PeekIRToken() is IRToken valueToken && valueToken.Type ==  tokType)
+            {
+                value = valueToken.Operand;
+                NextIRToken();
+            }
+            ExpectKeyword(loc, KeywordType.end, $"`end` after `{TypeNames(tokType)}` declaration");
 
             if (keyword is KeywordType.equal)
             {
-                varList.Add((word, valueToken.Operand, tokType));
+                varList.Add((word, value, tokType));
                 result = new(OpType.global_var, varList.Count - 1, loc);
             }
             else if (keyword is KeywordType.colon)
             {
-                constList.Add((word, valueToken.Operand, tokType));
+                constList.Add((word, value, tokType));
             }
             return true;
         }
