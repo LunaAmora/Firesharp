@@ -52,16 +52,9 @@ static partial class Firesharp
 
     static void Exit() => Environment.Exit(0);
 
-    static string Error(int exitCode, params string[] errorText)
+    static string Error(int exitCode, string errorText)
     {
-        if(errorText is string[] errors)
-        {
-            foreach(var error in errors)
-            {
-                Console.Error.WriteLine(error);
-            }
-        }
-        
+        Console.Error.WriteLine(errorText);
         Environment.Exit(exitCode);
         return string.Empty;
     }

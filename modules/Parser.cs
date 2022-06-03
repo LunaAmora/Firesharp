@@ -83,12 +83,12 @@ static partial class Firesharp
         TokenType._str     => new(OpType.push_str, tok.Operand, tok.Loc),
         TokenType._word    => wordList[tok.Operand] switch
         {
-            {} word when TryGetIntrinsic(word, tok.Loc, out Op? result)  => result,
-            {} word when TryGetLocalMem(word, tok.Loc, out Op? result)   => result,
-            {} word when TryGetGlobalMem(word, tok.Loc, out Op? result)  => result,
-            {} word when TryGetGlobalVar(word, tok.Loc, out Op? result)  => result,
-            {} word when TryGetProcName(word, tok.Loc, out Op? result)   => result,
-            {} word when TryGetConstName(word, tok.Loc, out Op? result)  => result,
+            {} word when TryGetIntrinsic(word, tok.Loc) is {} result => result,
+            {} word when TryGetLocalMem(word, tok.Loc)  is {} result => result,
+            {} word when TryGetGlobalMem(word, tok.Loc) is {} result => result,
+            {} word when TryGetProcName(word, tok.Loc)  is {} result => result,
+            {} word when TryGetConstName(word, tok.Loc) is {} result => result,
+            {} word when TryGetGlobalVar(word, tok.Loc, out Op? result) => result,
             {} word when TryDefineContext(word, tok.Loc, out Op? result) => result,
             {} word => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{word}`")
         },
@@ -131,46 +131,41 @@ static partial class Firesharp
         return op;
     }
 
-    static bool TryGetIntrinsic(string word, Loc loc, out Op? result)
+    static Op? TryGetIntrinsic(string word, Loc loc)
     {
-        var success = TryGetIntrinsic(word, out IntrinsicType res);
-        result = new(OpType.intrinsic, (int)res, loc);
-        return success;
+        if(TryGetIntrinsic(word, out IntrinsicType res))
+            return new(OpType.intrinsic, (int)res, loc);
+        return null;
     }
 
-    static bool TryGetProcName(string word, Loc loc, out Op? result)
+    static Op? TryGetProcName(string word, Loc loc)
     {
         var index = procList.FindIndex(proc => proc.name.Equals(word));
-        result = new(OpType.call, index, loc);
-        return index >= 0;
+        return index >= 0 ? new(OpType.call, index, loc) : null;
     }
 
-    static bool TryGetConstName(string word, Loc loc, out Op? result)
+    static Op? TryGetConstName(string word, Loc loc)
     {
         var index = constList.FindIndex(cnst => cnst.name.Equals(word));
-        var found = index >= 0;
-        if(found)
+        if(index >= 0)
         {
             var cnst = constList[index];
-            result = DefineOp(new(cnst.type, cnst.value, loc));
+            return DefineOp(new(cnst.type, cnst.value, loc));
         }
-        else result = null;
-        return found;
+        return null;
     }
 
-    static bool TryGetLocalMem(string word, Loc loc, out Op? result)
+    static Op? TryGetLocalMem(string word, Loc loc)
     {
         if(currentProc is Proc proc)
         {
             var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
             if (index != - 1)
             {
-                result = new (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
-                return true;
+                return new (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
             }
         }
-        result = null;
-        return false;
+        return null;
     }
 
     static bool TryGetGlobalVar(string word, Loc loc, out Op? result)
@@ -189,7 +184,7 @@ static partial class Firesharp
             else       result = new(OpType.load_var, index, loc);
             return true;
         }
-        else if(TryGetStructVars(word, out StructType structType))
+        else if(TryGetStructVars(word) is StructType structType)
         {
             List<StructMember> members = new (structType.members);
             if(store) members.Reverse();
@@ -207,40 +202,31 @@ static partial class Firesharp
         return false;
     }
 
-    static bool TryGetStructVars(string word, out StructType result)
+    static StructType? TryGetStructVars(string word)
     {
         var index = structVarsList.FindIndex(vars => vars.name.Equals(word));
         if (index != - 1)
         {
-            var res = structVarsList[index];
-            return TryGetTypeName(wordList[res.type], out result);
+            return TryGetTypeName(wordList[structVarsList[index].type]);
         }
-        result = default;
-        return false;
+        return null;
     }
 
-    static bool TryGetTypeName(string word, out StructType result)
+    static StructType? TryGetTypeName(string word)
     {
         var index = structList.FindIndex(type => type.name.Equals(word));
-        if (index != - 1)
-        {
-            result = structList[index];
-            return true;
-        }
-        result = default;
-        return false;
+        if (index != - 1) return structList[index];
+        return null;
     }
     
-    static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
+    static Op? TryGetGlobalMem(string word, Loc loc)
     {
         var index = memList.FindIndex(mem => mem.name.Equals(word));
         if (index != - 1)
         {
-            result = new (OpType.push_global_mem, memList[index].offset, loc);
-            return true;
+            return new(OpType.push_global_mem, memList[index].offset, loc);
         }
-        result = null;
-        return false;
+        return null;
     }
 
     static bool TryDefineContext(string word, Loc loc, out Op? result)
@@ -256,13 +242,13 @@ static partial class Firesharp
                 if(colonCount == 0)
                 {
                     if(token.Type is TokenType._word
-                        && TryGetTypeName(wordList[token.Operand], out StructType structType))
+                        && TryGetTypeName(wordList[token.Operand]) is StructType structType)
                     {
                         NextIRToken();
                         ParseStructVar(word, loc, token, structType);
                         return true;
                     }
-                    else return false;
+                    return false;
                 }
                 else if(colonCount == 1 && token.Type is TokenType._int)
                 {
@@ -310,7 +296,7 @@ static partial class Firesharp
             {
                 if(i == 1)
                 {
-                    Info(loc, "Ambiguous type inference bettwen `const` and `proc`, consider declaring the type for now.");
+                    Info(loc, "Ambiguous type inference between `const` and `proc`, consider declaring the type for now.");
                     result = DefineProc(word, new(OpType.prep_proc, loc), null);
                     NextIRToken();
                     NextIRToken();
@@ -346,7 +332,7 @@ static partial class Firesharp
         structVarsList.Add((word, token.Operand));
     }
 
-    private static bool ParseStruct(string word, Loc loc)
+    static bool ParseStruct(string word, Loc loc)
     {
         var members = new List<StructMember>();
         ExpectKeyword(loc, KeywordType.colon, "`:` after keyword `struct`");
@@ -380,7 +366,7 @@ static partial class Firesharp
         if (assignType is {Operand: int op} && (KeywordType)op is KeywordType keyword)
         {
             var value = 0;
-            if (PeekIRToken() is IRToken valueToken && valueToken.Type ==  tokType)
+            if (PeekIRToken() is IRToken valueToken && valueToken.Type == tokType)
             {
                 value = valueToken.Operand;
                 NextIRToken();
@@ -398,7 +384,7 @@ static partial class Firesharp
             }
             return true;
         }
-        else return false;
+        return false;
     }
 
     static bool ParseProcedure(string name, ref Op? result, Op op)
