@@ -14,6 +14,7 @@ static partial class Firesharp
     static DataList dataList = new();
     static int totalDataSize = 0;
     static VarList varList = new();
+    static VarList constList = new();
     
     static int finalDataSize => ((totalDataSize + 3)/4)*4;
 
@@ -61,24 +62,9 @@ static partial class Firesharp
         if (IRTokens.Count > 0) return IRTokens.Dequeue();
         return null;
     }
-    
-    static int TokensUntilPred(Predicate<IRToken> counter, Predicate<IRToken> pred)
-    {
-        var result = 0;
-        for (int i = 0; i < IRTokens.Count; i++)
-        {
-            var current = IRTokens.ElementAt(i);
-            if(counter(current)) result++;
-            if(pred(current)) break;
-        }
-        return result;
-    }
 
-    static int PredUntilEnd(Predicate<IRToken> pred)
-    {
-        return TokensUntilPred(pred, end => end.Type is TokenType._keyword && (KeywordType)end.Operand is KeywordType.end);
-    }
-    
+    static IRToken IRTokenAt(int i) => IRTokens.ElementAt(i);
+
     ref struct Lexer
     {
         ReadOnlySpan<char> buffer = ReadOnlySpan<char>.Empty;
@@ -228,16 +214,16 @@ static partial class Firesharp
         TokenType._keyword => DefineOp((KeywordType)tok.Operand, tok.Loc),
         TokenType._int     => new(OpType.push_int, tok.Operand, tok.Loc),
         TokenType._str     => new(OpType.push_str, tok.Operand, tok.Loc),
-        TokenType._word    => tok.Operand switch
+        TokenType._word    => wordList[tok.Operand] switch
         {
-            _ when (wordList.Count <= tok.Operand) => (Op?)Error(tok.Loc, $"Unreachable"),
-            _ when TryGetIntrinsic(wordList[tok.Operand],  tok.Loc, out Op? result) => result,
-            _ when TryGetLocalMem(wordList[tok.Operand],   tok.Loc, out Op? result) => result,
-            _ when TryGetGlobalMem(wordList[tok.Operand],  tok.Loc, out Op? result) => result,
-            _ when TryGetGlobalVar(wordList[tok.Operand],  tok.Loc, out Op? result) => result,
-            _ when TryGetProcName(wordList[tok.Operand],   tok.Loc, out Op? result) => result,
-            _ when TryDefineContext(wordList[tok.Operand], tok.Loc, out Op? result) => result,
-            _ => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{wordList[tok.Operand]}`")
+            {} word when TryGetIntrinsic(word, tok.Loc, out Op? result)  => result,
+            {} word when TryGetLocalMem(word, tok.Loc, out Op? result)   => result,
+            {} word when TryGetGlobalMem(word, tok.Loc, out Op? result)  => result,
+            {} word when TryGetGlobalVar(word, tok.Loc, out Op? result)  => result,
+            {} word when TryGetProcName(word, tok.Loc, out Op? result)   => result,
+            {} word when TryGetConstName(word, tok.Loc, out Op? result)  => result,
+            {} word when TryDefineContext(word, tok.Loc, out Op? result) => result,
+            {} word => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{word}`")
         },
         _ => (Op?)Error(tok.Loc, $"Token type not implemented in `DefineOp` yet: {tok.Type}")
     };
@@ -292,7 +278,7 @@ static partial class Firesharp
         KeywordType? context = null;
         for (int i = 0; i < IRTokens.Count; i++)
         {
-            var token = IRTokens.ElementAt(i);
+            var token = IRTokenAt(i);
             if (token.Type is not TokenType._keyword)
             {
                 if(colonCount == 0) return false;
@@ -355,18 +341,26 @@ static partial class Firesharp
         }
         else if(KeywordToToken(context, out TokenType tokType))
         {
-            if ((ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`"),
-                ExpectKeyword(loc, KeywordType.equal, $"`=` after `:`"),
-                ExpectToken(loc, tokType, "value after `=`"),
-                ExpectKeyword(loc, KeywordType.end, "`end` after var value")) is
-                (IRToken, IRToken, IRToken valueToken, IRToken))
+            ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
+            var irt = ExpectKeyword(loc, KeywordType.colon | KeywordType.equal, $"`:` or `=` after `{TypeNames(tokType)}`");
+
+            if(irt is IRToken ir && (KeywordType)ir.Operand is KeywordType keyword)
             {
-                varList.Add((word, valueToken.Operand, tokType));
-                result = new(OpType.global_var, varList.Count - 1, loc);
+                if(ExpectToken(loc, tokType, $"value after `{keyword}`") is not IRToken valueToken) return false;
+                ExpectKeyword(loc, KeywordType.end, "`end` after var value");
+
+                if(keyword is KeywordType.equal)
+                {
+                    varList.Add((word, valueToken.Operand, tokType));
+                    result = new(OpType.global_var, varList.Count - 1, loc);
+                }
+                else if(keyword is KeywordType.colon)
+                {
+                    constList.Add((word, valueToken.Operand, tokType));
+                }
                 return true;
             }
         }
-
         return false;
     }
 
@@ -375,6 +369,19 @@ static partial class Firesharp
         var index = procList.FindIndex(proc => proc.name.Equals(word));
         result = new(OpType.call, index, loc);
         return index >= 0;
+    }
+
+    static bool TryGetConstName(string word, Loc loc, out Op? result)
+    {
+        var index = constList.FindIndex(cnst => cnst.name.Equals(word));
+        var found = index >= 0;
+        if(found)
+        {
+            var cnst = constList[index];
+            result = DefineOp(new(cnst.type, cnst.value, loc));
+        }
+        else result = null;
+        return found;
     }
 
     static bool TryGetLocalMem(string word, Loc loc, out Op? result)
@@ -511,7 +518,7 @@ static partial class Firesharp
     static IRToken? ExpectKeyword(Loc loc, KeywordType expectedType, string notFound)
     {
         var token = ExpectToken(loc, TokenType._keyword, notFound);
-        if (token is IRToken tok && !((KeywordType)tok.Operand).Equals(expectedType))
+        if (token is IRToken tok && !(expectedType.HasFlag((KeywordType)tok.Operand)))
         {
             Error(tok.Loc, $"Expected keyword to be `{expectedType}`, but found `{(KeywordType)tok.Operand}`");
             return null;
@@ -521,11 +528,10 @@ static partial class Firesharp
 
     static void DefineMemory(string word, Loc loc)
     {
-        if ((ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`"),
-            ExpectToken(loc, TokenType._int, "memory size after `:`"),
-            ExpectKeyword(loc, KeywordType.end, "`end` after memory size")) is
-            (IRToken, IRToken valueToken, IRToken))
+        ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`");
+        if (ExpectToken(loc, TokenType._int, "memory size after `:`") is IRToken valueToken)
         {
+            ExpectKeyword(loc, KeywordType.end, "`end` after memory size");
             var size = ((valueToken.Operand + 3)/4)*4;
             if (currentProc is Proc proc)
             {

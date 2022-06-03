@@ -148,6 +148,7 @@ static partial class Firesharp
         fd_write
     }
 
+    [Flags]
     enum KeywordType
     {
         _none,

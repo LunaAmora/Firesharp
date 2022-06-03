@@ -20,11 +20,12 @@ puts : int ptr :
   1 ciovec 1 written fd_write drop
 end
 
-value int := 420 end
+constant_value int :: 69 end
+variable_value int := 420 end
 
 start ::
-  69 !value
-  value 69 = if
+  constant_value !variable_value
+  variable_value 69 = if
     "Hello World!\n"
   else
     "Other text here!!\n"
