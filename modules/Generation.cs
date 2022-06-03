@@ -4,6 +4,8 @@ namespace Firesharp;
 
 static partial class Firesharp
 {
+    static int finalDataSize => ((totalDataSize + 3)/4)*4;
+
     static void GenerateWasm(List<Op> program)
     {
         if (Path.GetDirectoryName(filepath) is not string dir)

@@ -28,43 +28,6 @@ static partial class Firesharp
         public override string ToString() => $"{file}:{line}:{col}:";
     }
 
-    public enum TokenType
-    {
-        _int,
-        _bool,
-        _str,
-        _cstr,
-        _ptr,
-        _word,
-        _keyword,
-        _any
-    }
-
-    static string TypeNames(this TokenType type) => type switch
-    {
-        TokenType._int  => "Integer",
-        TokenType._bool => "Boolean",
-        TokenType._str  => "String",
-        TokenType._cstr => "C-style String",
-        TokenType._ptr  => "Pointer",
-        TokenType._word => "Word",
-        TokenType._any  => "Any",
-        TokenType._keyword => "Keyword",
-        _ => Error($"DataType name not implemented: {type}")
-    };
-
-    struct Token
-    {
-        public string name;
-        public Loc loc;
-
-        public Token(string tokenName, Loc location)
-        {
-            name = tokenName;
-            loc = location;
-        }
-    }
-    
     struct IRToken
     {
         public TokenType Type;
@@ -100,20 +63,36 @@ static partial class Firesharp
 
         public static explicit operator Op?(string str) => null;
     }
-
-    enum ArityType
+    
+    public enum TokenType
     {
-        any,
-        same
+        _int,
+        _bool,
+        _str,
+        _ptr,
+        _word,
+        _keyword,
+        _any
     }
 
+    static string TypeNames(this TokenType type) => type switch
+    {
+        TokenType._int  => "Integer",
+        TokenType._bool => "Boolean",
+        TokenType._str  => "String",
+        TokenType._ptr  => "Pointer",
+        TokenType._word => "Word",
+        TokenType._any  => "Any",
+        TokenType._keyword => "Keyword",
+        _ => Error($"DataType name not implemented: {type}")
+    };
+    
     public enum OpType
     {
         push_int,
         push_bool,
         push_ptr,
         push_str,
-        push_cstr,
         push_local_mem,
         push_global_mem,
         global_var,
@@ -151,7 +130,6 @@ static partial class Firesharp
     [Flags]
     enum KeywordType
     {
-        _none,
         _int,
         _ptr,
         _bool,

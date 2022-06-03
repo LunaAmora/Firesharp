@@ -6,6 +6,12 @@ static partial class Firesharp
     static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshotting the datastack is really dumb, change later
     static Dictionary<Op, (int, int)> blockContacts = new ();
 
+    enum ArityType
+    {
+        any,
+        same
+    }
+
     static void TypeCheck(List<Op> program)
     {
         foreach (Op op in program) TypeCheckOp(op)();
@@ -21,7 +27,6 @@ static partial class Firesharp
             dataStack.Push(TokenType._int, op.loc);
             dataStack.Push(TokenType._ptr, op.loc);
         },
-        OpType.push_cstr => () => dataStack.Push(TokenType._ptr, op.loc),
         OpType.global_var => () => {},
         OpType.load_var   => () => dataStack.Push(varList[op.operand].type, op.loc),
         OpType.store_var  => () => 
@@ -70,32 +75,31 @@ static partial class Firesharp
         OpType.push_local_mem => () => dataStack.Push(TokenType._ptr, op.loc),
         OpType.call => () => 
         {
-            if (procList[op.operand].contract is Contract contr)
+            if (procList[op.operand] is var (_, (ins, outs)))
             {
-                var ins = new List<TokenType>(contr.ins);
-                ins.Reverse();
-                dataStack.ExpectArity(op.loc, ins.ToArray());
-                ins.ForEach(_ => dataStack.Pop());
-                var outs = contr.outs;
+                var insCopy = new List<TokenType>(ins);
+                insCopy.Reverse();
+                dataStack.ExpectArity(op.loc, insCopy.ToArray());
+                insCopy.ForEach(_ => dataStack.Pop());
                 for (int i = 0; i < outs.Count; i++) dataStack.Push(outs[i], op.loc);
             }
         },
         OpType.prep_proc => () =>
         {
             currentProc = procList[op.operand];
-            if (currentProc.contract is Contract contr)
+            if (currentProc is var (_, (ins, _)))
             {
-                contr.ins.ForEach(type => dataStack.Push(type, op.loc));
+                ins.ForEach(type => dataStack.Push(type, op.loc));
             }
         },
         OpType.end_proc => () =>
         {
             TokenType[] endStack;
-            if(currentProc is Proc proc && proc.contract is Contract contr)
+            if(currentProc is var (_, (_, outs)))
             {
-                var ou = contr.outs;
-                ou.Reverse();
-                endStack = ou.ToArray();
+                var outsCopy = new List<TokenType>(outs);
+                outsCopy.Reverse();
+                endStack = outsCopy.ToArray();
             }
             else endStack = new TokenType[0];
 
@@ -114,13 +118,13 @@ static partial class Firesharp
         },
         OpType._else => () =>
         {
-            (var oldStack, var startOp) = blockStack.Peek();
+            var (oldStack, startOp) = blockStack.Peek();
             blockStack.Push((dataStack, startOp));
             dataStack = new (oldStack);
         },
         OpType.end_if => () =>
         {
-            (var expected, var startOp) = blockStack.Pop();
+            var (expected, startOp) = blockStack.Pop();
 
             ExpectStackArity(expected, dataStack, op.loc, 
             $"Else-less if block is not allowed to alter the types of the arguments on the data stack");
@@ -134,7 +138,7 @@ static partial class Firesharp
         },
         OpType.end_else => () =>
         {
-            (var expected, var startOp) = blockStack.Pop();
+            var (expected, startOp) = blockStack.Pop();
 
             ExpectStackArity(expected, dataStack, op.loc, 
             $"Both branches of the if-block must produce the same types of the arguments on the data stack");
@@ -248,12 +252,12 @@ static partial class Firesharp
         stack.ExpectStackSize(contract.Count(), loc);
         for (int i = 0; i < contract.Count(); i++)
         {
-            var a = stack.ElementAt(i);
-            var b = contract.ElementAt(i);
-            if (b is not TokenType._any && !b.Equals(a.type))
+            var stk = stack.ElementAt(i);
+            var contr = contract.ElementAt(i);
+            if (contr is not TokenType._any && !contr.Equals(stk.type))
             {
-                Error(loc, $"Expected type `{TypeNames(b)}`, but found `{TypeNames(a.type)}`",
-                    $"{a.loc} [INFO] The type found was declared here");
+                Error(loc, $"Expected type `{TypeNames(contr)}`, but found `{TypeNames(stk.type)}`",
+                    $"{stk.loc} [INFO] The type found was declared here");
                 return false;
             }
         }

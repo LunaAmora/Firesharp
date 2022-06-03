@@ -1,23 +1,19 @@
 namespace Firesharp;
 
 using MemList = List<(string name, int offset)>;
-using VarList = List<(string name, int value, TokenType type)>;
-using DataList = List<(string name, int offset, int size)>;
+using TypeList = List<(string name, int value, TokenType type)>;
 
 static partial class Firesharp
 {
-    static List<string> wordList = new();
     static List<Proc> procList = new();
     static Stack<Op> opBlock = new();
+
+    static TypeList constList = new();
+    static TypeList varList = new();
+    
     static MemList memList = new();
     static int totalMemSize = 0;
-    static DataList dataList = new();
-    static int totalDataSize = 0;
-    static VarList varList = new();
-    static VarList constList = new();
     
-    static int finalDataSize => ((totalDataSize + 3)/4)*4;
-
     static Proc? currentProc;
     static bool insideProc => currentProc != null;
 
@@ -43,153 +39,14 @@ static partial class Firesharp
             }
         }
     }
-
-    static IRToken? ParseNextToken(this ref Lexer lexer) => lexer.NextToken(out Token tok) switch
-    {
-        false
-            => (null),
-        _ when TryParseString(ref lexer, tok, out int index)
-            => new(TokenType._str, index, tok.loc),
-        _ when TryParseNumber(tok.name, out int value)
-            => new(TokenType._int, value, tok.loc),
-        _ when TryParseKeyword(tok.name, out int keyword)
-            => new(TokenType._keyword, keyword, tok.loc),
-        _ => new(TokenType._word, DefineWord(tok.name), tok.loc)
-    };
     
+    static IRToken IRTokenAt(int i) => IRTokens.ElementAt(i);
     static IRToken? NextIRToken()
     {
         if (IRTokens.Count > 0) return IRTokens.Dequeue();
         return null;
     }
-
-    static IRToken IRTokenAt(int i) => IRTokens.ElementAt(i);
-
-    ref struct Lexer
-    {
-        ReadOnlySpan<char> buffer = ReadOnlySpan<char>.Empty;
-        StreamReader stream;
-        string file;
-
-        int parserPos = 0;
-        int colNum = 0;
-        int lineNum = 0;
-
-        public Lexer(StreamReader reader, string filepath)
-        {
-            stream = reader;
-            file = filepath;
-        }
-
-        public bool ReadLine()
-        {
-            if (stream.ReadLine() is string line)
-            {
-                lineNum++;
-                if (string.IsNullOrWhiteSpace(line)) return (ReadLine());
-
-                buffer = line.AsSpan();
-                colNum = 0;
-                parserPos = 0;
-                
-                if (!TrimLeft()) return ReadLine();
-                return true;
-            }
-            buffer = ReadOnlySpan<char>.Empty;
-            return false;
-        }
-
-        public void AdvanceByPredicate(Predicate<char> pred)
-        {
-            while (buffer.Length > parserPos && !pred(buffer[parserPos])) parserPos++;
-        }
-
-        public string ReadByPredicate(Predicate<char> pred)
-        {
-            AdvanceByPredicate(pred);
-            if(colNum == parserPos) parserPos++;
-            return buffer.Slice(colNum, parserPos - colNum).ToString();
-        }
-
-        public bool TrimLeft()
-        {
-            if (parserPos > buffer.Length - 1 || buffer.Slice(parserPos).Trim().IsEmpty) return false;
-
-            AdvanceByPredicate(pred => pred != ' ');
-            colNum = parserPos;
-            if (buffer.Slice(parserPos).StartsWith("//")) return false;
-
-            return true;
-        }
-
-        public bool NextToken(out Token token)
-        {
-            if (!TrimLeft() && !ReadLine())
-            {
-                token = default;
-                return false;
-            }
-            Predicate<char> pred = (c => c == ' ' || c == ':');
-            token = new(ReadByPredicate(pred), new(file, lineNum, colNum + 1));
-            return true;
-        }
-    }
-
-    static int DefineWord(string word)
-    {
-        wordList.Add(word);
-        return wordList.Count - 1;
-    }
-
-    private static bool TryParseString(ref Lexer lexer, Token tok, out int index)
-    {
-        index = dataList.Count;
-        if(tok.name.StartsWith('\"') && tok.name is string name)
-        {
-            if(!tok.name.EndsWith('\"'))
-            {
-                lexer.AdvanceByPredicate(pred => pred == '\"');
-                name = lexer.ReadByPredicate(pred => pred == ' ');
-                Assert(name.EndsWith('\"'), tok.loc, "Missing closing '\"' in string literal");
-            }
-             
-            name = name.Trim('\"');
-            var scapes = name.Count(pred => pred == '\\'); //TODO: This does not take escaped '\' into account
-            var length = name.Length - scapes;
-            dataList.Add((name, totalDataSize, length));
-            totalDataSize += length;
-            return true;
-        }
-        return false;
-    }
-
-    static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
-
-    static bool TryParseKeyword(string word, out int result)
-    {
-        result = (int)(word switch
-        {
-            "dup"  => KeywordType.dup,
-            "swap" => KeywordType.swap,
-            "drop" => KeywordType.drop,
-            "over" => KeywordType.over,
-            "rot"  => KeywordType.rot,
-            "if"   => KeywordType._if,
-            "else" => KeywordType._else,
-            "end"  => KeywordType.end,
-            "proc" => KeywordType.proc,
-            "int"  => KeywordType._int,
-            "ptr"  => KeywordType._ptr,
-            "bool" => KeywordType._bool,
-            "->"   => KeywordType.arrow,
-            "mem"  => KeywordType.mem,
-            ":"    => KeywordType.colon,
-            "="    => KeywordType.equal,
-            _ => (KeywordType)(-1)
-        });
-        return result >= 0;
-    }
-
+    
     static bool TryGetIntrinsic(string word, out IntrinsicType result)
     {
         result = (word switch
@@ -271,6 +128,74 @@ static partial class Firesharp
         return success;
     }
 
+    static bool TryGetProcName(string word, Loc loc, out Op? result)
+    {
+        var index = procList.FindIndex(proc => proc.name.Equals(word));
+        result = new(OpType.call, index, loc);
+        return index >= 0;
+    }
+
+    static bool TryGetConstName(string word, Loc loc, out Op? result)
+    {
+        var index = constList.FindIndex(cnst => cnst.name.Equals(word));
+        var found = index >= 0;
+        if(found)
+        {
+            var cnst = constList[index];
+            result = DefineOp(new(cnst.type, cnst.value, loc));
+        }
+        else result = null;
+        return found;
+    }
+
+    static bool TryGetLocalMem(string word, Loc loc, out Op? result)
+    {
+        if(currentProc is Proc proc)
+        {
+            var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
+            if (index != - 1)
+            {
+                result = new (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
+
+    static bool TryGetGlobalVar(string word, Loc loc, out Op? result)
+    {
+        var index = varList.FindIndex(mem => word.EndsWith(mem.name) && word.Length - mem.name.Length <= 1);
+        if (index != - 1)
+        {
+            var global = varList[index];
+            if(word.Equals(global.name))
+            {
+                result = new(OpType.load_var, index, loc);
+                return true;
+            }
+            else if (word.StartsWith('!'))
+            {
+                result = new(OpType.store_var, index, loc);
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
+
+    static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
+    {
+        var index = memList.FindIndex(mem => mem.name.Equals(word));
+        if (index != - 1)
+        {
+            result = new (OpType.push_global_mem, memList[index].offset, loc);
+            return true;
+        }
+        result = null;
+        return false;
+    }
+
     static bool TryDefineContext(string word, Loc loc, out Op? result)
     {
         result = null;
@@ -333,8 +258,7 @@ static partial class Firesharp
             result = ParseProcContract(word, new(OpType.prep_proc, loc));
             return result != null;
         }
-        
-        if(context is KeywordType.mem)
+        else if(context is KeywordType.mem)
         {
             DefineMemory(word, loc);
             return true;
@@ -361,74 +285,6 @@ static partial class Firesharp
                 return true;
             }
         }
-        return false;
-    }
-
-    static bool TryGetProcName(string word, Loc loc, out Op? result)
-    {
-        var index = procList.FindIndex(proc => proc.name.Equals(word));
-        result = new(OpType.call, index, loc);
-        return index >= 0;
-    }
-
-    static bool TryGetConstName(string word, Loc loc, out Op? result)
-    {
-        var index = constList.FindIndex(cnst => cnst.name.Equals(word));
-        var found = index >= 0;
-        if(found)
-        {
-            var cnst = constList[index];
-            result = DefineOp(new(cnst.type, cnst.value, loc));
-        }
-        else result = null;
-        return found;
-    }
-
-    static bool TryGetLocalMem(string word, Loc loc, out Op? result)
-    {
-        if(currentProc is Proc proc)
-        {
-            var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
-            if (index != - 1)
-            {
-                result = new (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
-                return true;
-            }
-        }
-        result = null;
-        return false;
-    }
-
-    static bool TryGetGlobalVar(string word, Loc loc, out Op? result)
-    {
-        var index = varList.FindIndex(mem => word.EndsWith(mem.name) && word.Length - mem.name.Length <= 1);
-        if (index != - 1)
-        {
-            var global = varList[index];
-            if(word.Equals(global.name))
-            {
-                result = new (OpType.load_var, index, loc);
-                return true;
-            }
-            else if (word.StartsWith('!'))
-            {
-                result = new (OpType.store_var, index, loc);
-                return true;
-            }
-        }
-        result = null;
-        return false;
-    }
-
-    static bool TryGetGlobalMem(string word, Loc loc, out Op? result)
-    {
-        var index = memList.FindIndex(mem => mem.name.Equals(word));
-        if (index != - 1)
-        {
-            result = new (OpType.push_global_mem, memList[index].offset, loc);
-            return true;
-        }
-        result = null;
         return false;
     }
 
