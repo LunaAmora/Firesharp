@@ -146,13 +146,14 @@ static partial class Firesharp
             "else" => KeywordType._else,
             "end"  => KeywordType.end,
             "proc" => KeywordType.proc,
-            "int"  => KeywordType._int,
-            "ptr"  => KeywordType._ptr,
-            "bool" => KeywordType._bool,
             "->"   => KeywordType.arrow,
             "mem"  => KeywordType.mem,
             ":"    => KeywordType.colon,
             "="    => KeywordType.equal,
+            "int"  => KeywordType._int,
+            "ptr"  => KeywordType._ptr,
+            "bool" => KeywordType._bool,
+            "struct" => KeywordType._struct,
             _ => (KeywordType)(-1)
         });
         return result >= 0;

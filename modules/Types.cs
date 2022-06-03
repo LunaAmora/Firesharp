@@ -71,6 +71,7 @@ static partial class Firesharp
         _str,
         _ptr,
         _word,
+        _type,
         _keyword,
         _any
     }
@@ -145,6 +146,7 @@ static partial class Firesharp
         over,
         rot,
         colon,
-        equal
+        equal,
+        _struct,
     }
 }

@@ -209,8 +209,18 @@ static partial class Firesharp
                 if(colonCount == 0) return false;
                 else if(colonCount == 1 && token.Type is TokenType._int)
                 {
-                    context = KeywordType.mem;
+                    var lastToken = IRTokenAt(i-1);
+                    if(lastToken.Type is TokenType._keyword 
+                        && (KeywordType)lastToken.Operand is KeywordType.equal)
+                    {
+                        context = KeywordType._int;
+                    }
+                    else context = KeywordType.mem;
                     break;
+                }
+                else if(colonCount == 1 && token.Type is TokenType._word)
+                {
+                    Error("not implemented type inference for structs yet");
                 }
                 else
                 {
@@ -225,14 +235,15 @@ static partial class Firesharp
 
             if(colonCount == 0 && (context is 
                 KeywordType.proc or 
-                KeywordType.mem || 
-                KeywordToToken(context, out TokenType _)))
+                KeywordType.mem  or
+                KeywordType._struct || 
+                KeywordToType(context, out TokenType _)))
             {
                 NextIRToken();
                 break;
             }
-            else if(context == KeywordType.colon) colonCount++;
-            else if(context == KeywordType.end)
+            else if(context is KeywordType.colon) colonCount++;
+            else if(context is KeywordType.end)
             {
                 Error(token.Loc, $"Missing body or contract necessary to infer the type of the word: `{word}`");
                 return false;
@@ -242,6 +253,7 @@ static partial class Firesharp
             {
                 if(i == 1)
                 {
+                    Info(loc, "Ambiguous type inference bettwen `const` and `proc`, consider declaring the type for now.");
                     result = DefineProc(word, new(OpType.prep_proc, loc), null);
                     NextIRToken();
                     NextIRToken();
@@ -253,42 +265,48 @@ static partial class Firesharp
             }
         }
 
-        if(context is KeywordType.proc)
+        return context switch
         {
-            result = ParseProcContract(word, new(OpType.prep_proc, loc));
-            return result != null;
-        }
-        else if(context is KeywordType.mem)
-        {
-            DefineMemory(word, loc);
-            return true;
-        }
-        else if(KeywordToToken(context, out TokenType tokType))
-        {
-            ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
-            var irt = ExpectKeyword(loc, KeywordType.colon | KeywordType.equal, $"`:` or `=` after `{TypeNames(tokType)}`");
+            KeywordType.proc => ParseProcedure(word, ref result, new(OpType.prep_proc, loc)),
+            KeywordType.mem  => ParseMemory(word, loc),
+            KeywordType._struct => ParseStruct(word, loc), 
+            _ when KeywordToType(context, out TokenType tokType)
+              => ParseConstOrVar(word, loc, tokType, ref result),
+            _ => false
+        };
+    }
 
-            if(irt is IRToken ir && (KeywordType)ir.Operand is KeywordType keyword)
-            {
-                if(ExpectToken(loc, tokType, $"value after `{keyword}`") is not IRToken valueToken) return false;
-                ExpectKeyword(loc, KeywordType.end, "`end` after var value");
-
-                if(keyword is KeywordType.equal)
-                {
-                    varList.Add((word, valueToken.Operand, tokType));
-                    result = new(OpType.global_var, varList.Count - 1, loc);
-                }
-                else if(keyword is KeywordType.colon)
-                {
-                    constList.Add((word, valueToken.Operand, tokType));
-                }
-                return true;
-            }
-        }
+    private static bool ParseStruct(string word, Loc loc)
+    {
+        Error(loc, "Struct parsing is not implemented yet");
         return false;
     }
 
-    static Op? ParseProcContract(string name, Op op)
+    static bool ParseConstOrVar(string word, Loc loc, TokenType tokType, ref Op? result)
+    {
+        ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
+        var irt = ExpectKeyword(loc, KeywordType.colon | KeywordType.equal, $"`:` or `=` after `{TypeNames(tokType)}`");
+
+        if (irt is IRToken ir && (KeywordType)ir.Operand is KeywordType keyword)
+        {
+            if (ExpectToken(loc, tokType, $"value after `{keyword}`") is not IRToken valueToken) return false;
+            ExpectKeyword(loc, KeywordType.end, "`end` after var value");
+
+            if (keyword is KeywordType.equal)
+            {
+                varList.Add((word, valueToken.Operand, tokType));
+                result = new(OpType.global_var, varList.Count - 1, loc);
+            }
+            else if (keyword is KeywordType.colon)
+            {
+                constList.Add((word, valueToken.Operand, tokType));
+            }
+            return true;
+        }
+        else return false;
+    }
+
+    static bool ParseProcedure(string name, ref Op? result, Op op)
     {
         List<TokenType> ins = new();
         List<TokenType> outs = new();
@@ -300,7 +318,7 @@ static partial class Firesharp
         {
             if(tok is {Type: TokenType._keyword} && (KeywordType)tok.Operand is KeywordType typ)
             {
-                if (KeywordToToken(typ, out TokenType  key) && key is not TokenType._keyword)
+                if (KeywordToType(typ, out TokenType  key) && key is not TokenType._keyword)
                 {
                     if(!foundArrow) ins.Add(key);
                     else outs.Add(key);
@@ -308,26 +326,30 @@ static partial class Firesharp
                 else if (typ is KeywordType.arrow)
                 {
                     if(!foundArrow) foundArrow = true;
-                    else return (Op?)Error(tok.Loc, "Duplicated `->` found on procedure definition");
+                    else return Assert(false, tok.Loc, "Duplicated `->` found on procedure definition");
                 }
-                else if (typ is KeywordType.colon) return DefineProc(name, op, new(ins, outs));
+                else if (typ is KeywordType.colon)
+                {
+                    result = DefineProc(name, op, new(ins, outs));
+                    return true;
+                }
                 else
                 {
                     sb.Append($": `{typ}`");
-                    return (Op?)Error(tok.Loc, sb.ToString());
+                    return Assert(false, tok.Loc, sb.ToString());
                 }
             }
             else
             {
                 sb.Append($": `{TypeNames(tok.Type)}`");
-                return (Op?)Error(tok.Loc, sb.ToString());
+                return Assert(false, tok.Loc, sb.ToString());
             }
         }
         sb.Append(" nothing");
-        return (Op?)Error(op.loc, sb.ToString());
+        return Assert(false, op.loc, sb.ToString());
     }
 
-    static bool KeywordToToken(KeywordType? type, out TokenType typ)
+    static bool KeywordToType(KeywordType? type, out TokenType typ)
     {
         typ = type switch
         {
@@ -382,7 +404,7 @@ static partial class Firesharp
         return token;
     }
 
-    static void DefineMemory(string word, Loc loc)
+    static bool ParseMemory(string word, Loc loc)
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`");
         if (ExpectToken(loc, TokenType._int, "memory size after `:`") is IRToken valueToken)
@@ -399,7 +421,9 @@ static partial class Firesharp
                 memList.Add((word, totalMemSize));
                 totalMemSize += size;
             }
+            return true;
         }
+        return false;
     }
 
     static Op? PushBlock(Op? op)
