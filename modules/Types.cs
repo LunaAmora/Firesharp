@@ -1,16 +1,21 @@
 namespace Firesharp;
 
 using DataList = List<(string name, int offset)>;
+using TypeList = List<(string name, int value, TokenType type)>;
 
 static partial class Firesharp
 {
-    record Proc(string name, Contract? contract)
+    record Proc(string name, Contract contract)
     {
         public DataList localMemNames = new();
+        public TypeList localVars = new();
         public int procMemSize = 0;
     }
 
-    record Contract(List<TokenType> ins, List<TokenType> outs);
+    record Contract(List<TokenType> ins, List<TokenType> outs)
+    {
+        public Contract() : this(new(), new()) {}
+    }
 
     public struct Loc
     {
@@ -95,9 +100,10 @@ static partial class Firesharp
         push_str,
         push_local_mem,
         push_global_mem,
-        global_var,
-        store_var,
-        load_var,
+        load_local,
+        store_local,
+        load_global,
+        store_global,
         intrinsic,
         dup,
         drop,

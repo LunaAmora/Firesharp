@@ -88,6 +88,7 @@ static partial class Firesharp
             {} word when TryGetGlobalMem(word, tok.Loc) is {} result => result,
             {} word when TryGetProcName(word, tok.Loc)  is {} result => result,
             {} word when TryGetConstName(word, tok.Loc) is {} result => result,
+            {} word when TryGetLocalVar(word, tok.Loc, out Op? result) => result,
             {} word when TryGetGlobalVar(word, tok.Loc, out Op? result) => result,
             {} word when TryDefineContext(word, tok.Loc, out Op? result) => result,
             {} word => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{word}`")
@@ -168,6 +169,42 @@ static partial class Firesharp
         return null;
     }
 
+    static bool TryGetLocalVar(string word, Loc loc, out Op? result)
+    {
+        if(currentProc is Proc proc)
+        {
+            var store = false;
+            if (word.StartsWith('!'))
+            {
+                word = word.Split('!')[1];
+                store = true;
+            }
+            var index = proc.localVars.FindIndex(val => val.name.Equals(word));
+            if (index >= 0)
+            {
+                if (store) result = new(OpType.store_local, index, loc);
+                else       result = new(OpType.load_local, index, loc);
+                return true;
+            }
+            else if (TryGetStructVars(word) is StructType structType)
+            {
+                List<StructMember> members = new (structType.members);
+                if(store) members.Reverse();
+
+                foreach (var member in members)
+                {
+                    index = proc.localVars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
+                    if (store) program.Add(new(OpType.store_local, index, loc));
+                    else       program.Add(new(OpType.load_local, index, loc));
+                }
+                result = null;
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
+
     static bool TryGetGlobalVar(string word, Loc loc, out Op? result)
     {
         var store = false;
@@ -178,10 +215,10 @@ static partial class Firesharp
         }
 
         var index = varList.FindIndex(val => word.Equals(val.name));
-        if (index != - 1)
+        if (index >= 0)
         {
-            if (store) result = new(OpType.store_var, index, loc);
-            else       result = new(OpType.load_var, index, loc);
+            if (store) result = new(OpType.store_global, index, loc);
+            else       result = new(OpType.load_global, index, loc);
             return true;
         }
         else if(TryGetStructVars(word) is StructType structType)
@@ -192,8 +229,8 @@ static partial class Firesharp
             foreach (var member in members)
             {
                 index = varList.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
-                if (store) program.Add(new(OpType.store_var, index, loc));
-                else       program.Add(new(OpType.load_var, index, loc));
+                if (store) program.Add(new(OpType.store_global, index, loc));
+                else       program.Add(new(OpType.load_global, index, loc));
             }
             result = null;
             return true;
@@ -297,7 +334,7 @@ static partial class Firesharp
                 if(i == 1)
                 {
                     Info(loc, "Ambiguous type inference between `const` and `proc`, consider declaring the type for now.");
-                    result = DefineProc(word, new(OpType.prep_proc, loc), null);
+                    result = DefineProc(word, new(OpType.prep_proc, loc), new ());
                     NextIRToken();
                     NextIRToken();
                     return true;
@@ -326,8 +363,9 @@ static partial class Firesharp
         ExpectKeyword(loc, KeywordType.end, "`end` after variable declaration");
         foreach (var member in structType.members)
         {
-            varList.Add(($"{word}.{member.name}", member.defaultValue, member.type));
-            program.Add(new(OpType.global_var, varList.Count - 1, token.Loc));
+            var structVar = ($"{word}.{member.name}", member.defaultValue, member.type);
+            if (currentProc is Proc proc) currentProc.localVars.Add(structVar);
+            else varList.Add(structVar);
         }
         structVarsList.Add((word, token.Operand));
     }
@@ -375,8 +413,9 @@ static partial class Firesharp
 
             if (keyword is KeywordType.equal)
             {
-                varList.Add((word, value, tokType));
-                result = new(OpType.global_var, varList.Count - 1, loc);
+                var newVar = (word, value, tokType);
+                if (currentProc is Proc proc) currentProc.localVars.Add(newVar);
+                else varList.Add(newVar);
             }
             else if (keyword is KeywordType.colon)
             {
@@ -442,7 +481,7 @@ static partial class Firesharp
         return (typ is not TokenType._keyword);
     }
 
-    static Op? DefineProc(string name, Op op, Contract? contract)
+    static Op? DefineProc(string name, Op op, Contract contract)
     {
         Assert(!insideProc, op.loc, "Cannot define a procedure inside of another procedure");
         currentProc = new(name, contract);

@@ -27,12 +27,23 @@ static partial class Firesharp
             dataStack.Push(TokenType._int, op.loc);
             dataStack.Push(TokenType._ptr, op.loc);
         },
-        OpType.global_var => () => {},
-        OpType.load_var   => () => dataStack.Push(varList[op.operand].type, op.loc),
-        OpType.store_var  => () => 
+        OpType.load_global => () => dataStack.Push(varList[op.operand].type, op.loc),
+        OpType.store_global => () => 
         {
             dataStack.ExpectArity(1, varList[op.operand].type, op.loc);
             dataStack.Pop();
+        },
+        OpType.store_local => () =>
+        {
+            if(currentProc is Proc proc)
+            {
+                dataStack.ExpectArity(1, proc.localVars[op.operand].type, op.loc);
+                dataStack.Pop();
+            }
+        },
+        OpType.load_local => () =>
+        {
+            if(currentProc is Proc proc) dataStack.Push(proc.localVars[op.operand].type, op.loc);
         },
         OpType.swap => () => 
         {

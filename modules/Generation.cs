@@ -38,6 +38,8 @@ static partial class Firesharp
             output.WriteLine("(func $bind_local (param i32) global.get $LOCAL_STACK local.get 0 i32.store i32.const 4 call $aloc_local)");
             output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)\n");
 
+            varList.ForEach(vari => output.WriteLine($"(global ${vari.name} (mut i32) (i32.const {vari.value}))\n"));
+
             program.ForEach(op => output.TryWriteLine(GenerateOp(op)));
 
             output.WriteLine("(export \"_start\" (func $start))\n");
@@ -82,15 +84,16 @@ static partial class Firesharp
 
     static string GenerateOp(Op op) => op.type switch
     {
-        OpType.load_var        => $"  global.get ${varList[op.operand].name}",
-        OpType.store_var       => $"  global.set ${varList[op.operand].name}",
+        OpType.load_local      => $"  local.get ${currentProc?.localVars[op.operand].name}",
+        OpType.store_local     => $"  local.set ${currentProc?.localVars[op.operand].name}",
+        OpType.load_global     => $"  global.get ${varList[op.operand].name}",
+        OpType.store_global    => $"  global.set ${varList[op.operand].name}",
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
         OpType.push_local_mem  => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
         OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
         OpType.push_int  => $"  i32.const {op.operand}",
         OpType.push_ptr  => $"  i32.const {op.operand}",
         OpType.push_bool => $"  i32.const {op.operand}",
-        OpType.global_var => $"(global ${varList[op.operand].name} (mut i32) (i32.const {varList[op.operand].value}))",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
         OpType.dup       => "  call $dup",
@@ -120,27 +123,38 @@ static partial class Firesharp
 
     static string PrependProc(this string str, Op op)
     {
-        var proc = procList[op.operand];
-        if(proc.procMemSize > 0)
+        currentProc = procList[op.operand];
+        if(currentProc.procMemSize > 0)
         {
-            str = $"  i32.const {proc.procMemSize} call $free_local\n{str}";
+            str = $"  i32.const {currentProc.procMemSize} call $free_local\n{str}";
         }
+        currentProc = null;
         return str;
     }
 
     static string AppendProc(this string str, Op op)
     {
-        var proc = procList[op.operand];
-        var sb = new StringBuilder($"{str}{proc.name}");
-        if(proc.contract is Contract contract)
+        currentProc = procList[op.operand];
+        StringBuilder sb = new StringBuilder(str);
+        if(currentProc is Proc proc)
         {
-            (int ins, int outs) contr = (contract.ins.Count, contract.outs.Count);
+            (int ins, int outs) contr = (proc.contract.ins.Count, proc.contract.outs.Count);
+            sb.Append(proc.name);
             AppendContract(sb, contr);
+
+            proc.localVars.ForEach(vari => sb.Append($"\n  (local ${vari.name} i32)"));
+            proc.localVars
+                .FindAll(vari => vari.value != 0)
+                .ForEach(vari => sb.Append($"\n  (local.set ${vari.name} (i32.const {vari.value}))"));
+            
             if(contr.ins > 0) sb.Append("\n ");
             for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         }
         
-        if(proc.procMemSize > 0) sb.Append($"\n  i32.const {proc.procMemSize} call $aloc_local");
+        if(currentProc.procMemSize > 0)
+        {
+            sb.Append($"\n  i32.const {currentProc.procMemSize} call $aloc_local");
+        }
 
         return sb.ToString();
     }
