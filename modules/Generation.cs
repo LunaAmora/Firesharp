@@ -136,10 +136,10 @@ static partial class Firesharp
     {
         currentProc = procList[op.operand];
         StringBuilder sb = new StringBuilder(str);
-        if(currentProc is Proc proc)
+        if(currentProc is {} proc && proc is var (name, (ins, outs)))
         {
-            (int ins, int outs) contr = (proc.contract.ins.Count, proc.contract.outs.Count);
-            sb.Append(proc.name);
+            (int ins, int outs) contr = (ins.Count, outs.Count);
+            sb.Append(name);
             AppendContract(sb, contr);
 
             proc.localVars.ForEach(vari => sb.Append($"\n  (local ${vari.name} i32)"));

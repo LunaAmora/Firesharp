@@ -171,40 +171,38 @@ static partial class Firesharp
 
     static bool TryGetLocalVar(string word, Loc loc, out Op? result)
     {
-        if(currentProc is Proc proc)
-        {
-            var store = false;
-            if (word.StartsWith('!'))
-            {
-                word = word.Split('!')[1];
-                store = true;
-            }
-
-            var index = proc.localVars.FindIndex(val => val.name.Equals(word));
-            if (index >= 0)
-            {
-                if (store) result = new(OpType.store_local, index, loc);
-                else       result = new(OpType.load_local, index, loc);
-                return true;
-            }
-            
-            index = proc.localVars.FindIndex(val => val.name.StartsWith($"{word}."));
-            if (index >= 0 && TryGetStructVars(word) is {} structType)
-            {
-                List<StructMember> members = new (structType.members);
-                if(store) members.Reverse();
-
-                foreach (var member in members)
-                {
-                    index = proc.localVars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
-                    if (store) program.Add(new(OpType.store_local, index, loc));
-                    else       program.Add(new(OpType.load_local, index, loc));
-                }
-                result = null;
-                return true;
-            }
-        }
         result = null;
+        if(currentProc is not {} proc) return false;
+        
+        var store = false;
+        if (word.StartsWith('!'))
+        {
+            word = word.Split('!')[1];
+            store = true;
+        }
+
+        var index = proc.localVars.FindIndex(val => val.name.Equals(word));
+        if (index >= 0)
+        {
+            if (store) result = new(OpType.store_local, index, loc);
+            else       result = new(OpType.load_local, index, loc);
+            return true;
+        }
+        
+        index = proc.localVars.FindIndex(val => val.name.StartsWith($"{word}."));
+        if (index >= 0 && TryGetStructVars(word) is {} structType)
+        {
+            var members = new List<StructMember>(structType.members);
+            if(store) members.Reverse();
+
+            foreach (var member in members)
+            {
+                index = proc.localVars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
+                if (store) program.Add(new(OpType.store_local, index, loc));
+                else       program.Add(new(OpType.load_local, index, loc));
+            }
+            return true;
+        }
         return false;
     }
 
@@ -417,7 +415,7 @@ static partial class Firesharp
         ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
         var assignType = ExpectKeyword(loc, KeywordType.assignTypes, $"`:` or `=` after `{TypeNames(tokType)}`");
 
-        if (assignType is {Operand: int op} && (KeywordType)op is KeywordType keyword)
+        if (assignType is {Operand: int op} && (KeywordType)op is {} keyword)
         {
             var value = 0;
             if (PeekIRToken() is {} valueToken && valueToken.Type == tokType)

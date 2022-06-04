@@ -35,7 +35,7 @@ static partial class Firesharp
         },
         OpType.store_local => () =>
         {
-            if(currentProc is Proc proc)
+            if(currentProc is {} proc)
             {
                 dataStack.ExpectArity(1, proc.localVars[op.operand].type, op.loc);
                 dataStack.Pop();
@@ -43,7 +43,7 @@ static partial class Firesharp
         },
         OpType.load_local => () =>
         {
-            if(currentProc is Proc proc) dataStack.Push(proc.localVars[op.operand].type, op.loc);
+            if(currentProc is {} proc) dataStack.Push(proc.localVars[op.operand].type, op.loc);
         },
         OpType.swap => () => 
         {
