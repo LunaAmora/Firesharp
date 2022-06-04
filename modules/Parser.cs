@@ -83,15 +83,15 @@ static partial class Firesharp
         TokenType._str     => new(OpType.push_str, tok.Operand, tok.Loc),
         TokenType._word    => wordList[tok.Operand] switch
         {
-            {} word when TryGetIntrinsic(word, tok.Loc) is {} result => result,
-            {} word when TryGetLocalMem(word, tok.Loc)  is {} result => result,
-            {} word when TryGetGlobalMem(word, tok.Loc) is {} result => result,
-            {} word when TryGetProcName(word, tok.Loc)  is {} result => result,
-            {} word when TryGetConstName(word, tok.Loc) is {} result => result,
-            {} word when TryGetLocalVar(word, tok.Loc, out Op? result) => result,
-            {} word when TryGetGlobalVar(word, tok.Loc, out Op? result) => result,
-            {} word when TryDefineContext(word, tok.Loc, out Op? result) => result,
-            {} word => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{word}`")
+            var word when TryGetIntrinsic(word, tok.Loc) is {} result => result,
+            var word when TryGetLocalMem(word, tok.Loc)  is {} result => result,
+            var word when TryGetGlobalMem(word, tok.Loc) is {} result => result,
+            var word when TryGetProcName(word, tok.Loc)  is {} result => result,
+            var word when TryGetConstName(word, tok.Loc) is {} result => result,
+            var word when TryGetLocalVar(word, tok.Loc, out Op? result) => result,
+            var word when TryGetGlobalVar(word, tok.Loc, out Op? result) => result,
+            var word when TryDefineContext(word, tok.Loc, out Op? result) => result,
+            var word => (Op?)Error(tok.Loc, $"Word was not declared on the program: `{word}`")
         },
         _ => (Op?)Error(tok.Loc, $"Token type not implemented in `DefineOp` yet: {tok.Type}")
     };
@@ -179,6 +179,7 @@ static partial class Firesharp
                 word = word.Split('!')[1];
                 store = true;
             }
+
             var index = proc.localVars.FindIndex(val => val.name.Equals(word));
             if (index >= 0)
             {
@@ -186,7 +187,9 @@ static partial class Firesharp
                 else       result = new(OpType.load_local, index, loc);
                 return true;
             }
-            else if (TryGetStructVars(word) is StructType structType)
+            
+            index = proc.localVars.FindIndex(val => val.name.StartsWith($"{word}."));
+            if (index >= 0 && TryGetStructVars(word) is StructType structType)
             {
                 List<StructMember> members = new (structType.members);
                 if(store) members.Reverse();
@@ -313,11 +316,7 @@ static partial class Firesharp
             
             context = (KeywordType)token.Operand;
 
-            if(colonCount == 0 && (context is 
-                KeywordType.proc or 
-                KeywordType.mem  or
-                KeywordType._struct || 
-                KeywordToType(context, out TokenType _)))
+            if(colonCount == 0 && (KeywordType.wordTypes | KeywordType.dataTypes).HasFlag(context))
             {
                 NextIRToken();
                 break;
@@ -350,7 +349,7 @@ static partial class Firesharp
             KeywordType.proc => ParseProcedure(word, ref result, new(OpType.prep_proc, loc)),
             KeywordType.mem  => ParseMemory(word, loc),
             KeywordType._struct => ParseStruct(word, loc), 
-            _ when KeywordToType(context, out TokenType tokType)
+            _ when KeywordToDataType(context) is TokenType tokType
               => ParseConstOrVar(word, loc, tokType, ref result),
             _ => false
         };
@@ -387,7 +386,7 @@ static partial class Firesharp
             var type = ExpectKeyword(loc, KeywordType.dataTypes, "struct member type");
 
             if(name is {Operand: int index} && type is {Operand: int keyType}
-                && KeywordToType((KeywordType)keyType, out TokenType tokType))
+                && KeywordToDataType((KeywordType)keyType) is TokenType tokType)
             {
                 members.Add(new (wordList[index], tokType));
             }
@@ -438,7 +437,7 @@ static partial class Firesharp
         {
             if(tok is {Type: TokenType._keyword} && (KeywordType)tok.Operand is KeywordType typ)
             {
-                if (KeywordToType(typ, out TokenType  key) && key is not TokenType._keyword)
+                if (KeywordToDataType(typ) is TokenType key && key is not TokenType._keyword)
                 {
                     if(!foundArrow) ins.Add(key);
                     else outs.Add(key);
@@ -459,6 +458,14 @@ static partial class Firesharp
                     return Assert(false, tok.Loc, sb.ToString());
                 }
             }
+            else if (tok is {Type: TokenType._word} && TryGetTypeName(wordList[tok.Operand]) is StructType structType)
+            {
+                foreach (var member in structType.members)
+                {
+                    if(!foundArrow) ins.Add(member.type);
+                    else outs.Add(member.type);
+                }
+            }
             else
             {
                 sb.Append($": `{TypeNames(tok.Type)}`");
@@ -469,17 +476,13 @@ static partial class Firesharp
         return Assert(false, op.loc, sb.ToString());
     }
 
-    static bool KeywordToType(KeywordType? type, out TokenType typ)
+    static TokenType KeywordToDataType(KeywordType? type) => type switch
     {
-        typ = type switch
-        {
-            KeywordType._int  => TokenType._int,
-            KeywordType._ptr  => TokenType._ptr,
-            KeywordType._bool => TokenType._bool,
-            _ => TokenType._keyword
-        };
-        return (typ is not TokenType._keyword);
-    }
+        KeywordType._int => TokenType._int,
+        KeywordType._ptr => TokenType._ptr,
+        KeywordType._bool => TokenType._bool,
+        _ => TokenType._keyword
+    };
 
     static Op? DefineProc(string name, Op op, Contract contract)
     {

@@ -12,7 +12,15 @@ null  : -> ptr  : 0 #ptr end
 ptr+ : ptr int -> ptr : #ptr + end
 ptr- : ptr int -> ptr : #ptr - end
 
-puts : int ptr :
+str struct :
+  len  int
+  data ptr
+end
+
+constant_value int :: 69 end
+variable_value int := 420 end
+
+puts proc : str :
   ciovec: 8 end
   written: 4 end
   ciovec !ptr
@@ -20,20 +28,11 @@ puts : int ptr :
   1 ciovec 1 written fd_write drop
 end
 
-property_value proc : -> int : 69 end
-constant_value int :: 69 end
-variable_value int := 420 end
-
-str struct :
-  len int
-  data ptr
-end
-
 start proc ::
   string_variable str := end
 
   constant_value !variable_value
-  variable_value  property_value = if
+  variable_value  69 = if
     "Hello World!\n"
   else
     "Other text here!!\n"
