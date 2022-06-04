@@ -308,15 +308,27 @@ static partial class Firesharp
                         context = KeywordType.proc;
                         break;
                     }
-                    else Error(loc, "Type inference for structs is not implemented yet");
+                    else if(IRTokens.Count > i+2)
+                    {
+                        var n1 = IRTokenAt(i+1);
+                        var n2 = IRTokenAt(i+2);
+                        if(n1 is {Type: TokenType._keyword})
+                        {
+                            if(KeywordToDataType((KeywordType)n1.Operand) is not TokenType._keyword && (
+                                (n2 is {Type: TokenType._keyword} && (KeywordType)n2.Operand is KeywordType.end) ||
+                                (n2 is {Type: TokenType._word})))
+                            {
+                                context = KeywordType._struct;
+                                break;
+                            }
+                        }
+                    }
                 }
-                else
-                {
-                    var invalidToken = token.Type is TokenType._word ? 
-                        wordList[token.Operand] : token.Type.ToString();
-                    Error(token.Loc, $"Invalid Token found on context declaration: `{invalidToken}`");
-                    return false;
-                }
+                
+                var invalidToken = token.Type is TokenType._word ? 
+                    wordList[token.Operand] : token.Type.ToString();
+                Error(token.Loc, $"Invalid Token found on context declaration: `{invalidToken}`");
+                return false;
             }
             
             context = (KeywordType)token.Operand;

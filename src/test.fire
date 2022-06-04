@@ -12,7 +12,7 @@ null  : -> ptr  : 0 #ptr end
 ptr+ : ptr int -> ptr : #ptr + end
 ptr- : ptr int -> ptr : #ptr - end
 
-str struct :
+str :
   len  int
   data ptr
 end
