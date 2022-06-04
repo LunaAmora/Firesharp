@@ -1,74 +1,75 @@
+using CliFx.Infrastructure;
+using CliFx.Attributes;
+using CliFx.Exceptions;
+using CliFx;
+
 namespace Firesharp;
+
+[Command("-com")]
+public class CompileCommand : ICommand
+{
+    [CommandParameter(0, Description = "Compile a `.fire` file to WebAssembly.")]
+    public FileInfo? File { get; init; }
+
+    public ValueTask ExecuteAsync(IConsole console)
+    {
+        _console = console;
+        if(File is {})
+        {
+            Assert(File.Extension.Equals(".fire"), "the input file name provided is not valid");
+            filepath = File.ToString();
+            try
+            {
+                using (var file = File.Open(FileMode.Open))
+                {
+                    ParseFile(file, filepath);
+                    TypeCheck(program);
+                    GenerateWasm(program);
+                }
+            }
+            catch(System.IO.FileNotFoundException)
+            {
+                Error($"File not found `{filepath}`");
+            }
+        }
+        return default;
+    }
+}
 
 static partial class Firesharp
 {
-    static string? filepath;
+    public static IConsole? _console;
+    public static string? filepath;
 
-    static void ParseArgs(string[] args)
+    public static void Write(string format, params object?[] arg) => _console?.Output.Write(format, arg);
+    public static void WriteLine(string format, params object?[] arg) => _console?.Output.WriteLine(format, arg);
+    public static void Info(string format, params object?[] arg)
     {
-        Assert(args.Count() != 0, "subcommand is not provided");
-
-        int i = 0;
-        while (i < args.Count())
-        {
-            switch (args[i++])
-            {
-                case "-com":
-                {
-                    Assert(args.Count() > i, "no input file is provided for the compilation");
-                    filepath = args[i++];
-                    Assert(filepath.Contains(".fire"), "the input file name provided is not valid");
-                    
-                    try
-                    {
-                        using (var file = new FileStream(filepath, FileMode.Open))
-                        {
-                            ParseFile(file, filepath);
-                        }
-                    }
-                    catch(System.IO.FileNotFoundException)
-                    {
-                        Error($"File not found `{args[i-1]}`");
-                    }
-                    return;
-                }
-                default: Error($"Unknown subcommand `{args[i-1]}`"); return;
-            }
-        }
-    }
-
-    static void Write(string format, params object?[]? arg) => Console.WriteLine(format, arg);
-    static void Info(string format, params object?[]? arg)
-    {
-        Console.Write("[INFO] ");
-        Write(format, arg);
+        Write("[INFO] ");
+        WriteLine(format, arg);
     }
     
-    static void Info(Loc loc, string format, params object?[]? arg)
+    public static void Info(Loc loc, string format, params object?[] arg)
     {
-        Console.Write($"{loc} [INFO] ");
-        Write(format, arg);
+        Write("{0} [INFO] ", loc);
+        WriteLine(format, arg);
     }
 
-    static void Exit() => Environment.Exit(0);
-
-    static string Error(int exitCode, string errorText)
+    public static string Error(int exitCode, string errorText)
     {
-        Console.Error.WriteLine(errorText);
-        Environment.Exit(exitCode);
-        return string.Empty;
+        throw new CommandException(errorText, exitCode);
     }
 
-    static string Error(params string[] errorText) => Error(-1, $"[ERROR] {string.Join("\n", errorText)}");
-    static string Error(Loc loc, params string[] errorText) => Error(-1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
+    public static string Error(params string[] errorText) => Error(-1, $"[ERROR] {string.Join("\n", errorText)}");
+    public static string Error(Loc loc, params string[] errorText) => Error(-1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
 
-    static bool Assert(bool cond, params string[] errorText)
+    public static bool Assert(bool cond, params string[] errorText)
     {
         if(!cond) Error(errorText);
         return cond;
     }
 
-    static bool Assert(bool cond, Loc loc, params string[] errorText)
+    public static bool Assert(bool cond, Loc loc, params string[] errorText)
     {
         if(!cond) Error(loc, errorText);
         return cond;

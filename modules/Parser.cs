@@ -6,6 +6,7 @@ using StructVars = List<(string name, int type)>;
 
 static partial class Firesharp
 {
+    public static List<Op> program = new ();
     static List<StructType> structList = new();
     static List<Proc> procList = new();
     static Stack<Op> opBlock = new();
@@ -22,7 +23,7 @@ static partial class Firesharp
 
     static Queue<IRToken> IRTokens = new();
 
-    static void ParseFile(FileStream file, string filepath)
+    public static void ParseFile(FileStream file, string filepath)
     {
         using (var reader = new StreamReader(file))
         {

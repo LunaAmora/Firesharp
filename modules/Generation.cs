@@ -6,7 +6,7 @@ static partial class Firesharp
 {
     static int finalDataSize => ((totalDataSize + 3)/4)*4;
 
-    static void GenerateWasm(List<Op> program)
+    public static void GenerateWasm(List<Op> program)
     {
         if (Path.GetDirectoryName(filepath) is not string dir)
         {
@@ -60,8 +60,8 @@ static partial class Firesharp
 
     static void CmdEcho(string format, params object?[] arg)
     {
-        Console.Write($"[CMD] ");
-        Console.WriteLine(format, arg);
+        Write($"[CMD] ");
+        WriteLine(format, arg);
         var cmd = new Process();
         cmd.StartInfo.FileName = "/bin/bash";
         cmd.StartInfo.RedirectStandardInput = true;
@@ -74,7 +74,7 @@ static partial class Firesharp
         cmd.StandardInput.Flush();
         cmd.StandardInput.Close();
         cmd.WaitForExit();
-        Console.Write(cmd.StandardOutput.ReadToEnd());
+        Write(cmd.StandardOutput.ReadToEnd());
     }
 
     static void TryWriteLine(this StreamWriter writer, string text)

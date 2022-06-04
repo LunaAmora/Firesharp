@@ -12,7 +12,7 @@ static partial class Firesharp
         same
     }
 
-    static void TypeCheck(List<Op> program)
+    public static void TypeCheck(List<Op> program)
     {
         foreach (Op op in program) TypeCheckOp(op)();
     }
