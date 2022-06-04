@@ -28,14 +28,14 @@ static partial class Firesharp
         {
             Lexer lexer = new(reader, filepath);
 
-            while(lexer.ParseNextToken() is IRToken token)
+            while(lexer.ParseNextToken() is {} token)
             {
                 IRTokens.Enqueue(token);
             }
             
-            while(NextIRToken() is IRToken token)
+            while(NextIRToken() is {} token)
             {
-                if(token.DefineOp() is Op op)
+                if(token.DefineOp() is {} op)
                 {
                     program.Add(op);
                 }
@@ -189,7 +189,7 @@ static partial class Firesharp
             }
             
             index = proc.localVars.FindIndex(val => val.name.StartsWith($"{word}."));
-            if (index >= 0 && TryGetStructVars(word) is StructType structType)
+            if (index >= 0 && TryGetStructVars(word) is {} structType)
             {
                 List<StructMember> members = new (structType.members);
                 if(store) members.Reverse();
@@ -224,7 +224,7 @@ static partial class Firesharp
             else       result = new(OpType.load_global, index, loc);
             return true;
         }
-        else if(TryGetStructVars(word) is StructType structType)
+        else if(TryGetStructVars(word) is {} structType)
         {
             List<StructMember> members = new (structType.members);
             if(store) members.Reverse();
@@ -282,10 +282,10 @@ static partial class Firesharp
                 if(colonCount == 0)
                 {
                     if(token.Type is TokenType._word
-                        && TryGetTypeName(wordList[token.Operand]) is StructType structType)
+                        && TryGetTypeName(wordList[token.Operand]) is {} structType)
                     {
                         NextIRToken();
-                        ParseStructVar(word, loc, token, structType);
+                        ParseStructVar(word, loc, token.Operand, structType);
                         return true;
                     }
                     return false;
@@ -303,7 +303,12 @@ static partial class Firesharp
                 }
                 else if(colonCount == 1 && token.Type is TokenType._word)
                 {
-                    Error(loc, "Type inference for structs is not implemented yet");
+                    if (TryGetTypeName(wordList[token.Operand]) is {} structType)
+                    {
+                        context = KeywordType.proc;
+                        break;
+                    }
+                    else Error(loc, "Type inference for structs is not implemented yet");
                 }
                 else
                 {
@@ -349,13 +354,13 @@ static partial class Firesharp
             KeywordType.proc => ParseProcedure(word, ref result, new(OpType.prep_proc, loc)),
             KeywordType.mem  => ParseMemory(word, loc),
             KeywordType._struct => ParseStruct(word, loc), 
-            _ when KeywordToDataType(context) is TokenType tokType
+            _ when KeywordToDataType(context) is {} tokType
               => ParseConstOrVar(word, loc, tokType, ref result),
             _ => false
         };
     }
 
-    static void ParseStructVar(string word, Loc loc, IRToken token, StructType structType)
+    static void ParseStructVar(string word, Loc loc, int wordIndex, StructType structType)
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after variable type definition");
         ExpectKeyword(loc, KeywordType.equal, "`=` after keyword `:`");
@@ -363,17 +368,17 @@ static partial class Firesharp
         foreach (var member in structType.members)
         {
             var structVar = ($"{word}.{member.name}", member.defaultValue, member.type);
-            if (currentProc is Proc proc) currentProc.localVars.Add(structVar);
+            if (currentProc is {} proc) currentProc.localVars.Add(structVar);
             else varList.Add(structVar);
         }
-        structVarsList.Add((word, token.Operand));
+        structVarsList.Add((word, wordIndex));
     }
 
     static bool ParseStruct(string word, Loc loc)
     {
         var members = new List<StructMember>();
         ExpectKeyword(loc, KeywordType.colon, "`:` after keyword `struct`");
-        while(PeekIRToken() is IRToken token)
+        while(PeekIRToken() is {} token)
         {
             if(token.Type is TokenType._keyword)
             {
@@ -386,7 +391,7 @@ static partial class Firesharp
             var type = ExpectKeyword(loc, KeywordType.dataTypes, "struct member type");
 
             if(name is {Operand: int index} && type is {Operand: int keyType}
-                && KeywordToDataType((KeywordType)keyType) is TokenType tokType)
+                && KeywordToDataType((KeywordType)keyType) is {} tokType)
             {
                 members.Add(new (wordList[index], tokType));
             }
@@ -403,7 +408,7 @@ static partial class Firesharp
         if (assignType is {Operand: int op} && (KeywordType)op is KeywordType keyword)
         {
             var value = 0;
-            if (PeekIRToken() is IRToken valueToken && valueToken.Type == tokType)
+            if (PeekIRToken() is {} valueToken && valueToken.Type == tokType)
             {
                 value = valueToken.Operand;
                 NextIRToken();
@@ -413,7 +418,7 @@ static partial class Firesharp
             if (keyword is KeywordType.equal)
             {
                 var newVar = (word, value, tokType);
-                if (currentProc is Proc proc) currentProc.localVars.Add(newVar);
+                if (currentProc is {} proc) currentProc.localVars.Add(newVar);
                 else varList.Add(newVar);
             }
             else if (keyword is KeywordType.colon)
@@ -433,11 +438,11 @@ static partial class Firesharp
 
         ExpectKeyword(op.loc, KeywordType.colon, "Expected `:` after keyword `proc`");
         var sb = new StringBuilder("Expected a proc contract or keyword `:` after procedure definition, but found");
-        while(NextIRToken() is IRToken tok)
+        while(NextIRToken() is {} tok)
         {
-            if(tok is {Type: TokenType._keyword} && (KeywordType)tok.Operand is KeywordType typ)
+            if(tok is {Type: TokenType._keyword} && (KeywordType)tok.Operand is {} typ)
             {
-                if (KeywordToDataType(typ) is TokenType key && key is not TokenType._keyword)
+                if (KeywordToDataType(typ) is {} key && key is not TokenType._keyword)
                 {
                     if(!foundArrow) ins.Add(key);
                     else outs.Add(key);
@@ -458,7 +463,7 @@ static partial class Firesharp
                     return Assert(false, tok.Loc, sb.ToString());
                 }
             }
-            else if (tok is {Type: TokenType._word} && TryGetTypeName(wordList[tok.Operand]) is StructType structType)
+            else if (tok is {Type: TokenType._word} && TryGetTypeName(wordList[tok.Operand]) is {} structType)
             {
                 foreach (var member in structType.members)
                 {
@@ -498,7 +503,7 @@ static partial class Firesharp
     {
         var sb = new StringBuilder();
         var errorLoc = loc;
-        if (NextIRToken() is IRToken token)
+        if (NextIRToken() is {} token)
         {
             if (token.Type.Equals(expected)) return token;
 
@@ -519,7 +524,7 @@ static partial class Firesharp
     static IRToken? ExpectKeyword(Loc loc, KeywordType expectedType, string notFound)
     {
         var token = ExpectToken(loc, TokenType._keyword, notFound);
-        if (token is IRToken tok && !(expectedType.HasFlag((KeywordType)tok.Operand)))
+        if (token is {} tok && !(expectedType.HasFlag((KeywordType)tok.Operand)))
         {
             Error(tok.Loc, $"Expected keyword to be `{expectedType}`, but found `{(KeywordType)tok.Operand}`");
             return null;
@@ -530,11 +535,11 @@ static partial class Firesharp
     static bool ParseMemory(string word, Loc loc)
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`");
-        if (ExpectToken(loc, TokenType._int, "memory size after `:`") is IRToken valueToken)
+        if (ExpectToken(loc, TokenType._int, "memory size after `:`") is {} valueToken)
         {
             ExpectKeyword(loc, KeywordType.end, "`end` after memory size");
             var size = ((valueToken.Operand + 3)/4)*4;
-            if (currentProc is Proc proc)
+            if (currentProc is {} proc)
             {
                 proc.localMemNames.Add((word, proc.procMemSize));
                 proc.procMemSize += size;
@@ -551,7 +556,7 @@ static partial class Firesharp
 
     static Op? PushBlock(Op? op)
     {
-        if(op is Op o) opBlock.Push(o);
+        if(op is {} o) opBlock.Push(o);
         return op;
     }
 

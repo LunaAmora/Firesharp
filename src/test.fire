@@ -20,7 +20,7 @@ end
 constant_value int :: 69 end
 variable_value int := 420 end
 
-puts proc : str :
+puts : str :
   ciovec: 8 end
   written: 4 end
   ciovec !ptr
