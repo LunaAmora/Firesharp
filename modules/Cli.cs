@@ -41,27 +41,41 @@ static partial class Firesharp
     public static IConsole? _console;
     public static string? filepath;
 
-    public static void Write(string format, params object?[] arg) => _console?.Output.Write(format, arg);
-    public static void WriteLine(string format, params object?[] arg) => _console?.Output.WriteLine(format, arg);
-    public static void Info(string format, params object?[] arg)
+    public static void Write(string format, params object?[] arg)
+        => _console?.Output.Write(format, arg);
+    
+    public static void WriteLine(string format, params object?[] arg)
+        => _console?.Output.WriteLine(format, arg);
+    
+    public static void WritePrefix(string prefix, ConsoleColor color, string format, params object?[] arg)
     {
-        Write("[INFO] ");
+        if(!(_console is {})) return;
+        _console.ForegroundColor = color;
+        Write(prefix);
         WriteLine(format, arg);
+        _console.ResetColor();
     }
     
+    public static void Warn(string format, params object?[] arg)
+        => WritePrefix("[WARN] ", ConsoleColor.Yellow, format, arg);
+    
+    public static void Warn(Loc loc, string format, params object?[] arg)
+        => WritePrefix($"{loc} [WARN] ", ConsoleColor.Yellow, format, arg);
+
+    public static void Info(string format, params object?[] arg)
+        => WritePrefix("[INFO] ", ConsoleColor.White, format, arg);
+    
     public static void Info(Loc loc, string format, params object?[] arg)
-    {
-        Write("{0} [INFO] ", loc);
-        WriteLine(format, arg);
-    }
+        => WritePrefix($"{loc} [INFO] ", ConsoleColor.White, format, arg);
+
+    public static string Error(params string[] errorText) 
+        => Error(-1, $"[ERROR] {string.Join("\n", errorText)}");
+    
+    public static string Error(Loc loc, params string[] errorText) 
+        => Error(-1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
 
     public static string Error(int exitCode, string errorText)
-    {
-        throw new CommandException(errorText, exitCode);
-    }
-
-    public static string Error(params string[] errorText) => Error(-1, $"[ERROR] {string.Join("\n", errorText)}");
-    public static string Error(Loc loc, params string[] errorText) => Error(-1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
+        => throw new CommandException(errorText, exitCode);
 
     public static bool Assert(bool cond, params string[] errorText)
     {

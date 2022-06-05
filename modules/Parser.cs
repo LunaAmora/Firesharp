@@ -348,7 +348,7 @@ static partial class Firesharp
             {
                 if(i == 1)
                 {
-                    Info(loc, "Ambiguous type inference between `const` and `proc`, consider declaring the type for now.");
+                    Warn(loc, "Ambiguous type inference between `const` and `proc`, consider declaring the type for now.");
                     result = DefineProc(word, new(OpType.prep_proc, loc), new ());
                     NextIRToken();
                     NextIRToken();
