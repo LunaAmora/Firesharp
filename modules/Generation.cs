@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using CliWrap;
 
 namespace Firesharp;
 
@@ -6,7 +7,7 @@ static partial class Firesharp
 {
     static int finalDataSize => ((totalDataSize + 3)/4)*4;
 
-    public static void GenerateWasm(List<Op> program)
+    public static async Task GenerateWasm(List<Op> program)
     {
         if (Path.GetDirectoryName(filepath) is not string dir)
         {
@@ -52,29 +53,23 @@ static partial class Firesharp
             }
         }
         string outWasm = $"{buildPath}/out.wasm";
-        CmdEcho("wat2wasm {0} -o {1}", outPath, outWasm);
-        // CmdEcho("wasm-opt -Oz --enable-multivalue {0} -o {0}", outWasm);
-        // CmdEcho("wasm2wat {0} -o {1}", outWasm, outPath);
-        CmdEcho("wasmtime {0}", outWasm);
+
+        await CmdEcho("wat2wasm", outPath, "-o", outWasm);
+        // await CmdEcho("wasm-opt", "-Oz", "--enable-multivalue", outWasm, "-o", outWasm);
+        // await CmdEcho("wasm2wat", outWasm, "-o", outPath);
+        await CmdEcho("wasmtime", outWasm);
     }
 
-    static void CmdEcho(string format, params object?[] arg)
+    static async Task CmdEcho(string target, params string[] arg)
     {
-        Write($"[CMD] ");
-        WriteLine(format, arg);
-        var cmd = new Process();
-        cmd.StartInfo.FileName = "/bin/bash";
-        cmd.StartInfo.RedirectStandardInput = true;
-        cmd.StartInfo.RedirectStandardOutput = true;
-        cmd.StartInfo.CreateNoWindow = true;
-        cmd.StartInfo.UseShellExecute = false;
-        cmd.Start();
-
-        cmd.StandardInput.WriteLine(format, arg);
-        cmd.StandardInput.Flush();
-        cmd.StandardInput.Close();
-        cmd.WaitForExit();
-        Write(cmd.StandardOutput.ReadToEnd());
+        Debug.Assert(_console is {});
+        var cmd = Cli.Wrap(target)
+            .WithValidation(CommandResultValidation.None)
+            .WithArguments(arg) |
+            (_console.Output.WriteLine, _console.Error.WriteLine);
+        WritePrefix("[CMD] ", cmd.ToString());
+        var result = await cmd.ExecuteAsync();
+        Assert(result.ExitCode == 0, "External command error, please report this in the project's github!");
     }
 
     static void TryWriteLine(this StreamWriter writer, string text)

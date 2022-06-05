@@ -11,7 +11,7 @@ public class CompileCommand : ICommand
     [CommandParameter(0, Description = "Compile a `.fire` file to WebAssembly.")]
     public FileInfo? File { get; init; }
 
-    public ValueTask ExecuteAsync(IConsole console)
+    public async ValueTask ExecuteAsync(IConsole console)
     {
         _console = console;
         if(File is {})
@@ -24,7 +24,7 @@ public class CompileCommand : ICommand
                 {
                     ParseFile(file, filepath);
                     TypeCheck(program);
-                    GenerateWasm(program);
+                    await GenerateWasm(program);
                 }
             }
             catch(System.IO.FileNotFoundException)
@@ -32,7 +32,6 @@ public class CompileCommand : ICommand
                 Error($"File not found `{filepath}`");
             }
         }
-        return default;
     }
 }
 
@@ -47,12 +46,17 @@ static partial class Firesharp
     public static void WriteLine(string format, params object?[] arg)
         => _console?.Output.WriteLine(format, arg);
     
+    public static void WritePrefix(string prefix, string format, params object?[] arg)
+    {
+        Write(prefix);
+        WriteLine(format, arg);
+    }
+
     public static void WritePrefix(string prefix, ConsoleColor color, string format, params object?[] arg)
     {
         if(!(_console is {})) return;
         _console.ForegroundColor = color;
-        Write(prefix);
-        WriteLine(format, arg);
+        WritePrefix(prefix, format, arg);
         _console.ResetColor();
     }
     
@@ -63,16 +67,16 @@ static partial class Firesharp
         => WritePrefix($"{loc} [WARN] ", ConsoleColor.Yellow, format, arg);
 
     public static void Info(string format, params object?[] arg)
-        => WritePrefix("[INFO] ", ConsoleColor.White, format, arg);
+        => WritePrefix("[INFO] ", format, arg);
     
     public static void Info(Loc loc, string format, params object?[] arg)
-        => WritePrefix($"{loc} [INFO] ", ConsoleColor.White, format, arg);
+        => WritePrefix($"{loc} [INFO] ", format, arg);
 
     public static string Error(params string[] errorText) 
-        => Error(-1, $"[ERROR] {string.Join("\n", errorText)}");
+        => Error(1, $"[ERROR] {string.Join("\n", errorText)}");
     
     public static string Error(Loc loc, params string[] errorText) 
-        => Error(-1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
+        => Error(1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
 
     public static string Error(int exitCode, string errorText)
         => throw new CommandException(errorText, exitCode);

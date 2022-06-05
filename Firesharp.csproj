@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="CliFx" Version="2.2.5" />
+    <PackageReference Include="CliWrap" Version="3.4.4" />
   </ItemGroup>
 
   <Target Name="PostClean" AfterTargets="Clean">
