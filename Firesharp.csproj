@@ -10,7 +10,8 @@
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <PublishReadyToRun>true</PublishReadyToRun>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition=" '$(OS)' == 'Windows_NT' ">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition=" '$(OS)' == 'Unix' ">linux-x64</RuntimeIdentifier>
     <DebugType>None</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
