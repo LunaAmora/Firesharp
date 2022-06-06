@@ -74,15 +74,15 @@ static class Generator
 
     static string GenerateOp(Op op) => op.type switch
     {
-        OpType.load_local      => $"  local.get ${CurrentProc.localVars[op.operand].name}",
-        OpType.store_local     => $"  local.set ${CurrentProc.localVars[op.operand].name}",
-        OpType.load_global     => $"  global.get ${varList[op.operand].name}",
-        OpType.store_global    => $"  global.set ${varList[op.operand].name}",
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
         OpType.push_local_mem  => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
+        OpType.store_global => $"  global.set ${varList[op.operand].name}",
+        OpType.load_global  => $"  global.get ${varList[op.operand].name}",
+        OpType.store_local => $"  local.set ${CurrentProc.localVars[op.operand].name}",
+        OpType.load_local  => $"  local.get ${CurrentProc.localVars[op.operand].name}",
         OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
-        OpType.push_int  => $"  i32.const {op.operand}",
-        OpType.push_ptr  => $"  i32.const {op.operand}",
+        OpType.push_int  or
+        OpType.push_ptr  or
         OpType.push_bool => $"  i32.const {op.operand}",
         OpType.over      => "  call $over",
         OpType.swap      => "  call $swap",
@@ -104,7 +104,7 @@ static class Generator
             IntrinsicType.load32    => "  i32.load",
             IntrinsicType.store32   => "  call $swap\n  i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",
-            IntrinsicType.cast_ptr  => string.Empty,
+            IntrinsicType.cast_ptr  or
             IntrinsicType.cast_bool => string.Empty,
             _ => Error(op.loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`")
         },
@@ -160,10 +160,9 @@ static class Generator
 
     static string AppendContract(this string str, Op op)
     {
-        if(blockContacts.ContainsKey(op) && blockContacts[op] is (int ins, int outs) contract)
+        if(blockContacts.ContainsKey(op) && blockContacts[op] is {} contract)
         {
-            var sb = new StringBuilder(str);
-            return sb.AppendContract(contract).ToString();
+            return new StringBuilder(str).AppendContract(contract).ToString();
         }
         return str;
     }

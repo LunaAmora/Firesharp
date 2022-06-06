@@ -32,7 +32,7 @@ start proc ::
   string_variable str := end
 
   constant_value !variable_value
-  variable_value  69 = if
+  variable_value 69 = if
     "Hello World!\n"
   else
     "Other text here!!\n"
