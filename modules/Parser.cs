@@ -26,7 +26,7 @@ class Parser
         get
         {
             Debug.Assert(_currentProc is {});
-            return _currentProc.Value;
+            return _currentProc;
         }
         set => _currentProc = value;
     }

@@ -2,7 +2,7 @@ namespace Firesharp;
 
 class Types
 {
-    public record struct Proc(string name, Contract contract)
+    public record Proc(string name, Contract contract)
     {
         public List<OffsetWord> localMemNames = new();
         public List<TypedWord> localVars = new();
@@ -26,7 +26,7 @@ class Types
         public IRToken(TypedWord word, Loc loc) : this(word.type, word.value, loc){}
     }
     
-    public record struct Op(OpType type, Loc loc) 
+    public record Op(OpType type, Loc loc) 
     {
         public int operand = 0;
         public Op(OpType type, int Operand, Loc loc) : this(type, loc) => operand = Operand;
