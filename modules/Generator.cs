@@ -1,15 +1,16 @@
-﻿using System.Diagnostics;
-using CliWrap;
+﻿using CliWrap;
 
 namespace Firesharp;
 
-static partial class Firesharp
-{
-    static int finalDataSize => ((totalDataSize + 3)/4)*4;
+using static TypeChecker;
+using static Tokenizer;
+using static Parser;
 
+static class Generator
+{
     public static async Task GenerateWasm(List<Op> program)
     {
-        if (Path.GetDirectoryName(filepath) is not string dir)
+        if (Path.GetDirectoryName(Filepath) is not string dir)
         {
             Error("Could not resolve file directory");
             return;
@@ -62,25 +63,19 @@ static partial class Firesharp
 
     static async Task CmdEcho(string target, params string[] arg)
     {
-        Debug.Assert(_console is {});
         var cmd = Cli.Wrap(target)
             .WithValidation(CommandResultValidation.None)
             .WithArguments(arg) |
-            (_console.Output.WriteLine, _console.Error.WriteLine);
+            (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
         WritePrefix("[CMD] ", cmd.ToString());
         var result = await cmd.ExecuteAsync();
         Assert(result.ExitCode == 0, "External command error, please report this in the project's github!");
     }
 
-    static void TryWriteLine(this StreamWriter writer, string text)
-    {
-        if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
-    }
-
     static string GenerateOp(Op op) => op.type switch
     {
-        OpType.load_local      => $"  local.get ${currentProc?.localVars[op.operand].name}",
-        OpType.store_local     => $"  local.set ${currentProc?.localVars[op.operand].name}",
+        OpType.load_local      => $"  local.get ${CurrentProc.localVars[op.operand].name}",
+        OpType.store_local     => $"  local.set ${CurrentProc.localVars[op.operand].name}",
         OpType.load_global     => $"  global.get ${varList[op.operand].name}",
         OpType.store_global    => $"  global.set ${varList[op.operand].name}",
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
@@ -116,26 +111,35 @@ static partial class Firesharp
         _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
     };
 
+    static void TryWriteLine(this StreamWriter writer, string text)
+    {
+        if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
+    }
+
     static string PrependProc(this string str, Op op)
     {
-        currentProc = procList[op.operand];
-        if(currentProc.procMemSize > 0)
+        Assert(InsideProc, "Unreachable, parser error.");
+        var proc = CurrentProc;
+        if(proc.procMemSize > 0)
         {
-            str = $"  i32.const {currentProc.procMemSize} call $free_local\n{str}";
+            str = $"  i32.const {proc.procMemSize} call $free_local\n{str}";
         }
-        currentProc = null;
+        ExitCurrentProc();
         return str;
     }
 
     static string AppendProc(this string str, Op op)
     {
-        currentProc = procList[op.operand];
+        Assert(!InsideProc, "Unreachable, parser error.");
+        var proc = procList[op.operand];
+        CurrentProc = proc;
+        
         StringBuilder sb = new StringBuilder(str);
-        if(currentProc is {} proc && proc is var (name, (ins, outs)))
+        if(proc is var (name, (ins, outs)))
         {
             (int ins, int outs) contr = (ins.Count, outs.Count);
             sb.Append(name);
-            AppendContract(sb, contr);
+            sb.AppendContract(contr);
 
             proc.localVars.ForEach(vari => sb.Append($"\n  (local ${vari.name} i32)"));
             proc.localVars
@@ -146,9 +150,9 @@ static partial class Firesharp
             for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         }
         
-        if(currentProc.procMemSize > 0)
+        if(proc.procMemSize > 0)
         {
-            sb.Append($"\n  i32.const {currentProc.procMemSize} call $aloc_local");
+            sb.Append($"\n  i32.const {proc.procMemSize} call $aloc_local");
         }
 
         return sb.ToString();
@@ -159,12 +163,12 @@ static partial class Firesharp
         if(blockContacts.ContainsKey(op) && blockContacts[op] is (int ins, int outs) contract)
         {
             var sb = new StringBuilder(str);
-            return AppendContract(sb, contract).ToString();
+            return sb.AppendContract(contract).ToString();
         }
         return str;
     }
 
-    static StringBuilder AppendContract(StringBuilder sb, (int ins, int outs) contract)
+    static StringBuilder AppendContract(this StringBuilder sb, (int ins, int outs) contract)
     {
         if (contract.ins > 0)
         {

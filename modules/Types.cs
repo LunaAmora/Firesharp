@@ -1,72 +1,40 @@
 namespace Firesharp;
 
-using DataList = List<(string name, int offset)>;
-using TypeList = List<(string name, int value, TokenType type)>;
-
-static partial class Firesharp
+class Types
 {
-    record Proc(string name, Contract contract)
+    public record struct Proc(string name, Contract contract)
     {
-        public DataList localMemNames = new();
-        public TypeList localVars = new();
+        public List<OffsetWord> localMemNames = new();
+        public List<TypedWord> localVars = new();
         public int procMemSize = 0;
     }
 
-    record Contract(List<TokenType> ins, List<TokenType> outs)
+    public record struct Contract(List<TokenType> ins, List<TokenType> outs)
     {
         public Contract() : this(new(), new()) {}
     }
 
-    public struct Loc
+    public record struct Loc(string file, int line, int col)
     {
-        public string file;
-        public int line;
-        public int col;
-
-        public Loc(string filename, int lineNum, int colNum)
-        {
-            file = filename;
-            line = lineNum;
-            col = colNum;
-        }
-
+        public static implicit operator Loc((string file, int line, int col) value)
+            => new Loc(value.file, value.line, value.col);
         public override string ToString() => $"{file}:{line}:{col}:";
     }
 
-    struct IRToken
+    public record struct IRToken(TokenType type, int operand, Loc loc)
     {
-        public TokenType Type;
-        public int Operand;
-        public Loc Loc;
-
-        public IRToken(TokenType type, int operand, Loc loc)
-        {
-            Loc = loc;
-            Type = type;
-            Operand = operand;
-        }
+        public IRToken(TypedWord word, Loc loc) : this(word.type, word.value, loc){}
     }
     
-    public struct Op 
+    public record struct Op(OpType type, Loc loc) 
     {
-        public OpType type;
         public int operand = 0;
-        public Loc loc;
-
-        public Op(OpType Type, Loc Loc)
-        {
-            type = Type;
-            loc = Loc;
-        }
-
-        public Op(OpType Type, int Operand, Loc Loc)
-        {
-            loc = Loc;
-            type = Type;
-            operand = Operand;
-        }
-
+        public Op(OpType type, int Operand, Loc loc) : this(type, loc) => operand = Operand;
         public static explicit operator Op?(string str) => null;
+        public static implicit operator Op((OpType type, Loc loc) value)
+            => new Op(value.type, value.loc);
+        public static implicit operator Op((OpType type, int operand, Loc loc) value)
+            => new Op(value.type, value.operand, value.loc);
     }
     
     public enum TokenType
@@ -80,7 +48,7 @@ static partial class Firesharp
         _any
     }
 
-    static string TypeNames(this TokenType type) => type switch
+    public static string TypeNames(TokenType type) => type switch
     {
         TokenType._int  => "Integer",
         TokenType._bool => "Boolean",
@@ -120,7 +88,7 @@ static partial class Firesharp
         end_proc,
     }
 
-    enum IntrinsicType
+    public enum IntrinsicType
     {
         plus,
         minus,
@@ -157,5 +125,20 @@ static partial class Firesharp
         wordTypes = proc | mem | _struct,
         dataTypes = _int | _ptr | _bool,
         assignTypes = equal | colon,
+    }
+
+    public record struct OffsetWord(string name, int offset)
+    {
+        public static implicit operator OffsetWord((string name, int offset) value)
+            => new(value.name, value.offset);
+    }
+    
+    public record struct TypedWord(OffsetWord word, TokenType type)
+    {
+        public TypedWord(string name, int offset, TokenType type) : this ((name, offset), type){}
+        public static implicit operator TypedWord((string name, int offset, TokenType type) value)
+            => new(value.name, value.offset, value.type);
+        public string name => word.name;
+        public int value => word.offset;
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CliFx.Infrastructure;
 using CliFx.Attributes;
 using CliFx.Exceptions;
@@ -13,23 +14,23 @@ public class CompileCommand : ICommand
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
-        _console = console;
+        FConsole = console;
         if(File is {})
         {
-            Assert(File.Extension.Equals(".fire"), "the input file name provided is not valid");
-            filepath = File.ToString();
+            Assert(File.Extension.Equals(".fire"), "The input file name provided is not valid");
+            Filepath = File.ToString();
             try
             {
                 using (var file = File.Open(FileMode.Open))
                 {
-                    ParseFile(file, filepath);
-                    TypeCheck(program);
-                    await GenerateWasm(program);
+                    var program = Parser.ParseFile(file, Filepath);
+                    TypeChecker.TypeCheck(program);
+                    await Generator.GenerateWasm(program);
                 }
             }
             catch(System.IO.FileNotFoundException)
             {
-                Error($"File not found `{filepath}`");
+                Error($"File not found `{Filepath}`");
             }
         }
     }
@@ -37,14 +38,34 @@ public class CompileCommand : ICommand
 
 static partial class Firesharp
 {
-    public static IConsole? _console;
-    public static string? filepath;
+    static IConsole? _console;
+    static string? _filepath;
+
+    public static IConsole FConsole
+    {
+        get
+        {
+            Debug.Assert(_console is {});
+            return _console;
+        }
+        set => _console = value;
+    }
+
+    public static string Filepath
+    {
+        get
+        {
+            Debug.Assert(_filepath is {});
+            return _filepath;
+        }
+        set => _filepath = value;
+    }
 
     public static void Write(string format, params object?[] arg)
-        => _console?.Output.Write(format, arg);
+        => FConsole.Output.Write(format, arg);
     
     public static void WriteLine(string format, params object?[] arg)
-        => _console?.Output.WriteLine(format, arg);
+        => FConsole.Output.WriteLine(format, arg);
     
     public static void WritePrefix(string prefix, string format, params object?[] arg)
     {
@@ -54,10 +75,9 @@ static partial class Firesharp
 
     public static void WritePrefix(string prefix, ConsoleColor color, string format, params object?[] arg)
     {
-        if(!(_console is {})) return;
-        _console.ForegroundColor = color;
+        FConsole.ForegroundColor = color;
         WritePrefix(prefix, format, arg);
-        _console.ResetColor();
+        FConsole.ResetColor();
     }
     
     public static void Warn(string format, params object?[] arg)

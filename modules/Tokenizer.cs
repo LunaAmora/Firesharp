@@ -1,26 +1,25 @@
 namespace Firesharp;
 
-using DataList = List<(string name, int offset, int size)>;
-
-static partial class Firesharp
+class Tokenizer
 {
-    static List<string> wordList = new();
-    static DataList dataList = new();
+    public record struct SizedWord(OffsetWord word, int size)
+    {
+        public SizedWord(string name, int offset, int size) : this ((name, offset), size){}
+        public static implicit operator SizedWord((string name, int offset, int size) value)
+            => new(value.name, value.offset, value.size);
+        public string name => word.name;
+        public int offset => word.offset;
+    }
+
+    public static List<SizedWord> dataList = new();
+    public static List<string> wordList = new();
     static int totalDataSize = 0;
 
-    struct Token
-    {
-        public string name;
-        public Loc loc;
-
-        public Token(string tokenName, Loc location)
-        {
-            name = tokenName;
-            loc = location;
-        }
-    }
+    public static int finalDataSize => ((totalDataSize + 3)/4)*4;
     
-    ref struct Lexer
+    record struct Token(string name, Loc loc){}
+    
+    public ref struct Lexer
     {
         ReadOnlySpan<char> buffer = ReadOnlySpan<char>.Empty;
         StreamReader stream;
@@ -85,7 +84,7 @@ static partial class Firesharp
                 return false;
             }
             Predicate<char> pred = (c => c == ' ' || c == ':');
-            token = new(ReadByPredicate(pred), new(file, lineNum, colNum + 1));
+            token = new(ReadByPredicate(pred), (file, lineNum, colNum + 1));
             return true;
         }
 

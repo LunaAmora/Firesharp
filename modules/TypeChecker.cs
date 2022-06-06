@@ -1,16 +1,13 @@
 namespace Firesharp;
 
-static partial class Firesharp
-{
-    static DataStack dataStack = new ();
-    static Stack<(DataStack stack, Op op)> blockStack = new (); //TODO: This method of snapshotting the datastack is really dumb, change later
-    static Dictionary<Op, (int, int)> blockContacts = new ();
+using static Parser;
 
-    enum ArityType
-    {
-        any,
-        same
-    }
+static class TypeChecker
+{
+    public static Dictionary<Op, (int, int)> blockContacts = new();
+    
+    static DataStack dataStack = new();
+    static Stack<(DataStack stack, Op op)> blockStack = new(); //TODO: This method of snapshotting the datastack is really dumb, change later
 
     public static void TypeCheck(List<Op> program)
     {
@@ -35,15 +32,14 @@ static partial class Firesharp
         },
         OpType.store_local => () =>
         {
-            if(currentProc is {} proc)
-            {
-                dataStack.ExpectArity(1, proc.localVars[op.operand].type, op.loc);
-                dataStack.Pop();
-            }
+            Assert(InsideProc, "Unreachable, parser error.");
+            dataStack.ExpectArity(1, CurrentProc.localVars[op.operand].type, op.loc);
+            dataStack.Pop();
         },
         OpType.load_local => () =>
         {
-            if(currentProc is {} proc) dataStack.Push(proc.localVars[op.operand].type, op.loc);
+            Assert(InsideProc, "Unreachable, parser error.");
+            dataStack.Push(CurrentProc.localVars[op.operand].type, op.loc);
         },
         OpType.swap => () => 
         {
@@ -97,27 +93,21 @@ static partial class Firesharp
         },
         OpType.prep_proc => () =>
         {
-            currentProc = procList[op.operand];
-            if (currentProc is var (_, (ins, _)))
-            {
-                ins.ForEach(type => dataStack.Push(type, op.loc));
-            }
+            Assert(!InsideProc, "Unreachable, parser error.");
+            CurrentProc = procList[op.operand];
+            CurrentProc.contract.ins.ForEach(type => dataStack.Push(type, op.loc));
         },
         OpType.end_proc => () =>
         {
-            TokenType[] endStack;
-            if(currentProc is var (_, (_, outs)))
-            {
-                var outsCopy = new List<TokenType>(outs);
-                outsCopy.Reverse();
-                endStack = outsCopy.ToArray();
-            }
-            else endStack = new TokenType[0];
+            Assert(InsideProc, "Unreachable, parser error.");
+            var outsCopy = new List<TokenType>(CurrentProc.contract.outs);
+            outsCopy.Reverse();
+            TokenType[] endStack = outsCopy.ToArray();
 
             dataStack.ExpectStackExact(op.loc, endStack);
             foreach (var _ in endStack) dataStack.Pop();
             
-            currentProc = null;
+            ExitCurrentProc();
             dataStack = new();
         },
         OpType.if_start => () =>
@@ -125,13 +115,13 @@ static partial class Firesharp
             dataStack.ExpectArity(1, TokenType._bool, op.loc);
             dataStack.Pop();
             blockStack.Push((dataStack, op));
-            dataStack = new (dataStack);
+            dataStack = new(dataStack);
         },
         OpType._else => () =>
         {
             var (oldStack, startOp) = blockStack.Peek();
             blockStack.Push((dataStack, startOp));
-            dataStack = new (oldStack);
+            dataStack = new(oldStack);
         },
         OpType.end_if => () =>
         {
@@ -324,7 +314,8 @@ static partial class Firesharp
 
     struct DataStack
     {
-        public Stack<TypeFrame> typeFrames = new Stack<TypeFrame>();
+        public record struct TypeFrame(TokenType type, Loc loc){}
+        public Stack<TypeFrame> typeFrames = new();
         public int minCount = 0;
         public int stackCount = 0;
 
@@ -334,7 +325,7 @@ static partial class Firesharp
             typeFrames = dataStack.typeFrames.Clone();
         }
 
-        public void Push(TokenType type, Loc loc) => Push(new (type, loc));
+        public void Push(TokenType type, Loc loc) => Push(new(type, loc));
         public void Push(TypeFrame typeFrame)
         {
             stackCount++;
@@ -364,16 +355,10 @@ static partial class Firesharp
             if (stackCount < minCount) minCount = stackCount;
         }
     }
-
-    struct TypeFrame
+    
+    enum ArityType
     {
-        public TokenType type;
-        public Loc loc;
-
-        public TypeFrame(TokenType type, Loc loc)
-        {
-            this.type = type;
-            this.loc = loc;
-        }
+        any,
+        same
     }
 }
