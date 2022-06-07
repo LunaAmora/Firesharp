@@ -389,6 +389,7 @@ class Parser
                 NextIRToken();
                 if(CompileEval(out (TypeFrame frame, int value, int skip) varEval))
                 {
+                    Assert(varEval.frame.type is not TokenType._any, varEval.frame.loc, "Undefined variable value is not allowed");
                     for (int a = 0; a < varEval.skip; a++) NextIRToken();
                     TypedWord newVar = new(word, varEval.value, varEval.frame.type);
                     if (InsideProc) CurrentProc.localVars.Add(newVar);
@@ -406,6 +407,7 @@ class Parser
 
                     if(CompileEval(out (TypeFrame frame, int value, int skip) eval))
                     {
+                        Assert(eval.frame.type is not TokenType._any, eval.frame.loc, "Undefined constant value is not allowed");
                         for (int a = 0; a < eval.skip; a++) NextIRToken();
                         constList.Add((word, eval.value, eval.frame.type));
                         return true;
@@ -449,6 +451,11 @@ class Parser
                     }
                     else if(evalStack.Count == 0)
                     {
+                        if(i == 0)
+                        {
+                            result = ((TokenType._any, token.loc), 0, 1);
+                            return true;
+                        }
                         Error(token.loc, $"Expected a value on the stack in the end of the compile-time evaluation, but found nothing");
                     }
                     else
@@ -626,7 +633,7 @@ class Parser
         {
             if (CompileEval(out (TypeFrame frame, int value, int skip) eval))
             {
-                Assert(eval.frame.type == tokType, $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
+                Assert((tokType | TokenType._any).HasFlag(eval.frame.type), $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
                 for (int i = 0; i < eval.skip; i++) NextIRToken();
                 if(keyword is KeywordType.colon)
                 {
