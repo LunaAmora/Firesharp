@@ -146,7 +146,7 @@ class Parser
             {type: OpType.if_start} => (OpType.end_if, loc),
             {type: OpType._else}    => (OpType.end_else, loc),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
-            {type: OpType.bind_stack} op => (OpType.pop_bind, op.operand, loc),  
+            {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
         },
         _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
@@ -155,6 +155,13 @@ class Parser
     static bool ExpectProc(TokenType type, Loc loc, string errorText)
     {
         return !Assert(type is TokenType._keyword or TokenType._word || InsideProc, loc, errorText);
+    }
+
+    static Op PopBind(Op op)
+    {
+        var proc = CurrentProc;
+        proc.bindings.RemoveRange(proc.bindings.Count - op.operand, op.operand);
+        return op;
     }
 
     static Op ExitProc(Op op)
