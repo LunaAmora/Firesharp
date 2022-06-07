@@ -15,7 +15,7 @@ static class TypeChecker
         foreach (Op op in program) TypeCheckOp(op)();
     }
 
-    static Action TypeCheckOp(Op op)  => op.type switch
+    static Action TypeCheckOp(Op op) => op.type switch
     {
         OpType.push_int  => () => dataStack.Push(TokenType._int, op.loc),
         OpType.push_bool => () => dataStack.Push(TokenType._bool, op.loc),
@@ -305,15 +305,16 @@ static class TypeChecker
             $"{loc} [INFO] Actual types:   {ListTypes(actual)}");
     }
 
-    static string ListTypes(this DataStack types) => ListTypes(types, false);
-    static string ListTypes(this DataStack types, bool verbose)
+    static string ListTypes(this DataStack types) => ListTypes(types.typeFrames.ToList(), false);
+    static string ListTypes(this DataStack types, bool verbose) => ListTypes(types.typeFrames.ToList(), verbose);
+    public static string ListTypes(this List<TypeFrame> types, bool verbose)
     {
-        var typs = ListTypes(types.Reverse().Select(t => t.type).ToList());
+        var typs = ListTypes(types.Reverse<TypeFrame>().Select(t => t.type).ToList());
         if (verbose)
         {
             var sb = new StringBuilder(typs);
             sb.Append("\n");
-            sb.AppendJoin('\n', types.typeFrames.Select(t => $"{t.loc} [INFO] Type `{TypeNames(t.type)}` was declared here"));
+            sb.AppendJoin('\n', types.Select(t => $"{t.loc} [INFO] Type `{TypeNames(t.type)}` was declared here"));
             return sb.ToString();
         }
         return typs;
@@ -335,7 +336,12 @@ static class TypeChecker
         return new Stack<T>(arr);
     }
 
-    record struct TypeFrame(TokenType type, Loc loc){}
+    public record struct TypeFrame(TokenType type, Loc loc)
+    {
+        public static implicit operator TypeFrame((TokenType type, Loc loc) value)
+            => new TypeFrame(value.type, value.loc);
+    }
+    
     struct DataStack
     {
         public Stack<TypeFrame> typeFrames = new();
@@ -348,7 +354,7 @@ static class TypeChecker
             typeFrames = dataStack.typeFrames.Clone();
         }
 
-        public void Push(TokenType type, Loc loc) => Push(new(type, loc));
+        public void Push(TokenType type, Loc loc) => Push((type, loc));
         public void Push(TypeFrame typeFrame)
         {
             stackCount++;
@@ -370,7 +376,6 @@ static class TypeChecker
 
         public int Count() => typeFrames.Count;
         public TypeFrame ElementAt(int v) => typeFrames.ElementAt(v);
-        public IEnumerable<TypeFrame> Reverse() => typeFrames.Reverse();
 
         void stackMinus()
         {

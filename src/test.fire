@@ -17,8 +17,10 @@ str :
   data ptr
 end
 
-constant_value int :: 69 end
-variable_value int := 420 end
+420_const :: 419 1 + end
+69_const :: 34 dup 1 + + end
+constant_value :: 69_const end
+variable_value := 420_const end
 
 puts : str :
   ciovec: 8 end
@@ -28,7 +30,7 @@ puts : str :
   1 ciovec 1 written fd_write drop
 end
 
-start proc ::
+start ::
   string_variable str := end
   constant_value !variable_value
 

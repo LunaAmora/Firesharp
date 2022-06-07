@@ -101,6 +101,7 @@ class Types
         div,
         cast_bool,
         cast_ptr,
+        cast_int,
         store32,
         load32,
         fd_write

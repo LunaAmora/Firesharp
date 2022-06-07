@@ -2,6 +2,7 @@ using System.Diagnostics;
 
 namespace Firesharp;
 
+using static TypeChecker;
 using static Tokenizer;
 
 class Parser
@@ -83,6 +84,7 @@ class Parser
             "%" => IntrinsicType.div,
             "@32" => IntrinsicType.load32,
             "!32" => IntrinsicType.store32,
+            "#int" => IntrinsicType.cast_int,
             "#ptr" => IntrinsicType.cast_ptr,
             "#bool" => IntrinsicType.cast_bool,
             "fd_write" => IntrinsicType.fd_write,
@@ -97,6 +99,7 @@ class Parser
         TokenType._keyword => DefineOp((KeywordType)tok.operand, tok.loc),
         TokenType._int     => (OpType.push_int, tok.operand, tok.loc),
         TokenType._str     => (OpType.push_str, tok.operand, tok.loc),
+        TokenType._ptr     => (OpType.push_ptr, tok.operand, tok.loc),
         TokenType._word    => wordList[tok.operand] switch
         {
             var word when TryGetBinding(word, tok.loc) is {} result => result,
@@ -104,7 +107,7 @@ class Parser
             var word when TryGetLocalMem(word, tok.loc)  is {} result => result,
             var word when TryGetGlobalMem(word, tok.loc) is {} result => result,
             var word when TryGetProcName(word, tok.loc)  is {} result => result,
-            var word when TryGetConstName(word, tok.loc) is {} result => result,
+            var word when TryGetConstName(word) is {} result => DefineOp(new(result, tok.loc)),
             var word when TryGetLocalVar(word, tok.loc, out Op? result) => result,
             var word when TryGetGlobalVar(word, tok.loc, out Op? result) => result,
             var word when TryDefineContext(word, tok.loc, out Op? result) => result,
@@ -183,12 +186,12 @@ class Parser
         return index >= 0 ? (OpType.call, index, loc) : null;
     }
 
-    static Op? TryGetConstName(string word, Loc loc)
+    static TypedWord? TryGetConstName(string word)
     {
         var index = constList.FindIndex(cnst => cnst.name.Equals(word));
         if(index >= 0)
         {
-            return DefineOp(new(constList[index], loc));
+            return constList[index];
         }
         return null;
     }
@@ -380,15 +383,35 @@ class Parser
                 Error(token.loc, $"Missing body or contract necessary to infer the type of the word: `{word}`");
                 return false;
             }
+            else if(context is KeywordType.equal && colonCount == 1)
+            {
+                NextIRToken();
+                NextIRToken();
+                if(CompileEval(out (TypeFrame frame, int value, int skip) varEval))
+                {
+                    for (int a = 0; a < varEval.skip; a++) NextIRToken();
+                    TypedWord newVar = new(word, varEval.value, varEval.frame.type);
+                    if (InsideProc) CurrentProc.localVars.Add(newVar);
+                    else varList.Add(newVar);
+                    return true;
+                }
+            }
 
             if(colonCount == 2)
             {
                 if(i == 1)
                 {
-                    Warn(loc, "Ambiguous type inference between `const` and `proc`, consider declaring the type for now.");
+                    NextIRToken();
+                    NextIRToken();
+
+                    if(CompileEval(out (TypeFrame frame, int value, int skip) eval))
+                    {
+                        for (int a = 0; a < eval.skip; a++) NextIRToken();
+                        constList.Add((word, eval.value, eval.frame.type));
+                        return true;
+                    }
+                    
                     result = DefineProc(word, (OpType.prep_proc, loc), new());
-                    NextIRToken();
-                    NextIRToken();
                     return true;
                 }
                 
@@ -407,6 +430,153 @@ class Parser
             _ => false
         };
     }
+
+    static bool CompileEval(out (TypeFrame frame, int value, int skip) result)
+    {
+        var evalStack = new Stack<(TypeFrame frame, int value)>();
+        IRToken token = default;
+        for (int i = 0; i < IRTokens.Count; i++)
+        {
+            token = IRTokenAt(i);
+            if(token is {type: TokenType._keyword})
+            {
+                if((KeywordType)token.operand is KeywordType.end)
+                {
+                    if(evalStack.Count > 1)
+                    {
+                        var typs = evalStack.Select(f => f.frame).ToList().ListTypes(true);
+                        Error(token.loc, $"Expected only one value on the stack in the end of the constant evaluation, but found: `{typs}`");
+                    }
+                    else if(evalStack.Count == 0)
+                    {
+                        Error(token.loc, $"Expected a value on the stack in the end of the constant evaluation, but found nothing");
+                    }
+                    else
+                    {
+                        var last = evalStack.Pop();
+                        result = (last.frame, last.value, i + 1);
+                        return true;
+                    }
+                }
+            }
+            if(!EvalToken(token, evalStack)()) break;
+        }
+        result = (new(token.type, token.loc), token.operand, 0);
+        return false;
+    }
+
+    static Func<bool> EvalToken(IRToken tok, Stack<(TypeFrame frame, int value)> evalStack) => tok.type switch
+    {
+        TokenType._int  => () =>
+        {
+            evalStack.Push(((TokenType._int, tok.loc), tok.operand));
+            return true;
+        },
+        TokenType._bool => () =>
+        {
+            evalStack.Push(((TokenType._bool, tok.loc), tok.operand));
+            return true;
+        },
+        TokenType._ptr => () =>
+        {
+            evalStack.Push(((TokenType._ptr, tok.loc), tok.operand));
+            return true;
+        },
+        TokenType._word => () => (wordList[tok.operand] switch
+        {
+            var word when TryGetIntrinsic(word, tok.loc) is {} op => () => ((IntrinsicType)op.operand switch
+            {
+                IntrinsicType.plus => () =>
+                {
+                    var A = evalStack.Pop();
+                    var B = evalStack.Pop();
+                    evalStack.Push(((B.frame.type, op.loc), A.value + B.value));
+                    return true;
+                },
+                IntrinsicType.minus => () =>
+                {
+                    var A = evalStack.Pop();
+                    var B = evalStack.Pop();
+                    evalStack.Push(((B.frame.type, op.loc), B.value - A.value));
+                    return true;
+                },
+                IntrinsicType.cast_bool => () =>
+                {
+                    var A = evalStack.Pop();
+                    evalStack.Push(((TokenType._bool, op.loc), A.value == 0 ? 0 : 1));
+                    return true;
+                },
+                IntrinsicType.cast_ptr => () =>
+                {
+                    var A = evalStack.Pop();
+                    evalStack.Push(((TokenType._ptr, op.loc), A.value));
+                    return true;
+                },
+                IntrinsicType.cast_int => () =>
+                {
+                    var A = evalStack.Pop();
+                    evalStack.Push(((TokenType._int, op.loc), A.value));
+                    return true;
+                },
+                _ => (Func<bool>)(() => false),
+            })(),
+            var word when TryGetConstName(word) is {} cnst => () =>
+            {
+                evalStack.Push(((cnst.type, tok.loc), cnst.value));
+                return true;
+            },
+            _ => (Func<bool>)(() => false),
+        })(),
+        TokenType._keyword => () => ((KeywordType)tok.operand switch
+        {
+            KeywordType.dup => () =>
+            {
+                evalStack.Push(evalStack.Peek());
+                return true;
+            },
+            KeywordType.swap => () =>
+            {
+                var A = evalStack.Pop();
+                var B = evalStack.Pop();
+                evalStack.Push(A);
+                evalStack.Push(B);
+                return true;
+            },
+            KeywordType.drop => () =>
+            {
+                evalStack.Pop();
+                return true;
+            },
+            KeywordType.over => () =>
+            {
+                var A = evalStack.Pop();
+                var B = evalStack.Pop();
+                evalStack.Push(B);
+                evalStack.Push(A);
+                evalStack.Push(B);
+                return true;
+            },
+            KeywordType.rot => () =>
+            {
+                var A = evalStack.Pop();
+                var B = evalStack.Pop();
+                var C = evalStack.Pop();
+                evalStack.Push(B);
+                evalStack.Push(A);
+                evalStack.Push(C);
+                return true;
+            },
+            KeywordType.equal => () => 
+            {
+                var A = evalStack.Pop();
+                var B = evalStack.Pop();
+                evalStack.Push(((TokenType._bool, tok.loc), A.value == B.value ? 1 : 0));
+                return true;
+            },
+            _ => (Func<bool>)(() => false),
+        })(),
+         _ => () => false,
+    };
 
     static void ParseStructVar(string word, Loc loc, int wordIndex, StructType structType)
     {
@@ -452,28 +622,30 @@ class Parser
     {
         ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
         var assignType = ExpectKeyword(loc, KeywordType.assignTypes, $"`:` or `=` after `{TypeNames(tokType)}`");
-
         if (assignType is {operand: int op} && (KeywordType)op is {} keyword)
         {
-            var value = 0;
-            if (PeekIRToken() is {} valueToken && valueToken.type == tokType)
+            if (CompileEval(out (TypeFrame frame, int value, int skip) eval))
             {
-                value = valueToken.operand;
-                NextIRToken();
+                Assert(eval.frame.type == tokType, $"Expected type `{TypeNames(tokType)}` on the stack at the end of the constant evaluation, but found: `{TypeNames(eval.frame.type)}`");
+                for (int i = 0; i < eval.skip; i++) NextIRToken();
+                if(keyword is KeywordType.colon)
+                {
+                    constList.Add((word, eval.value, tokType));
+                    return true;
+                }
+                else
+                {
+                    TypedWord newVar = new(word, eval.value, tokType);
+                    if (InsideProc) CurrentProc.localVars.Add(newVar);
+                    else varList.Add(newVar);
+                    return true;
+                }
             }
-            ExpectKeyword(loc, KeywordType.end, $"`end` after `{TypeNames(tokType)}` declaration");
-
-            if (keyword is KeywordType.equal)
+            else
             {
-                TypedWord newVar = new(word, value, tokType);
-                if (InsideProc) CurrentProc.localVars.Add(newVar);
-                else varList.Add(newVar);
+                var constOrVarName = keyword is KeywordType.colon ? "constant" : "variable";
+                Error(eval.frame.loc, $"Invalid token found on {constOrVarName} declaration: `{TypeNames(eval.frame.type)}`");
             }
-            else if (keyword is KeywordType.colon)
-            {
-                constList.Add((word, value, tokType));
-            }
-            return true;
         }
         return false;
     }
