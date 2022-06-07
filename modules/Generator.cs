@@ -71,11 +71,16 @@ static class Generator
         var result = await cmd.ExecuteAsync();
         Assert(result.ExitCode == 0, "External command error, please report this in the project's github!");
     }
+    
+    static void TryWriteLine(this StreamWriter writer, string text)
+    {
+        if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
+    }
 
     static string GenerateOp(Op op) => op.type switch
     {
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
-        OpType.push_local_mem  => $"  global.get $LOCAL_STACK i32.const {op.operand + 4} i32.sub",
+        OpType.push_local_mem  => $"  global.get $LOCAL_STACK i32.const {op.operand + ((CurrentProc.bindCount + 1) * 4)} i32.sub",
         OpType.store_global => $"  global.set ${varList[op.operand].name}",
         OpType.load_global  => $"  global.get ${varList[op.operand].name}",
         OpType.store_local => $"  local.set ${CurrentProc.localVars[op.operand].name}",
@@ -97,6 +102,9 @@ static class Generator
         OpType.end_if    or 
         OpType.end_else  => "  end",
         OpType.end_proc  => ")\n".PrependProc(op),
+        OpType.bind_stack => BindValues(op.operand),
+        OpType.push_bind  => $"  i32.const {(op.operand + 1)*4} call $push_bind",
+        OpType.pop_bind   => PopBind(op.operand),
         OpType.intrinsic => (IntrinsicType)op.operand switch
         {
             IntrinsicType.plus      => "  i32.add",
@@ -111,9 +119,23 @@ static class Generator
         _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
     };
 
-    static void TryWriteLine(this StreamWriter writer, string text)
+    static string BindValues(int bindNumber)
     {
-        if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
+        var sb = new StringBuilder();
+
+        if(bindNumber > 0) sb.Append(" ");
+        for (int i = 0; i < bindNumber; i++)
+        {
+            sb.Append(" call $bind_local");
+        }
+        CurrentProc.bindCount += bindNumber;
+        return sb.ToString();
+    }
+
+    static string PopBind(int bindNumber)
+    {
+        CurrentProc.bindCount -= bindNumber;
+        return $"  i32.const {bindNumber * 4} call $free_local";
     }
 
     static string PrependProc(this string str, Op op)

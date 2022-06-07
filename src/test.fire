@@ -30,13 +30,19 @@ end
 
 start proc ::
   string_variable str := end
-
   constant_value !variable_value
-  variable_value 69 = if
-    "Hello World!\n"
-  else
-    "Other text here!!\n"
-  end !string_variable
+
+  "Hello World!\n"
+  "Other text here!!\n"
+
+  let len data len2 data2 :
+    variable_value 69 = if
+      len data 
+    else 
+      len2 data2
+    end
+    !string_variable
+  end
 
   string_variable puts
 end

@@ -8,6 +8,7 @@ static class TypeChecker
     
     static DataStack dataStack = new();
     static Stack<(DataStack stack, Op op)> blockStack = new(); //TODO: This method of snapshotting the datastack is really dumb, change later
+    static Stack<TypeFrame> bindStack = new();
 
     public static void TypeCheck(List<Op> program)
     {
@@ -150,6 +151,28 @@ static class TypeChecker
             var oldStack = blockStack.Pop().stack;
             dataStack.minCount   = oldStack.stackCount + ins;
             dataStack.stackCount = oldStack.stackCount;
+        },
+        OpType.bind_stack => () =>
+        {
+            dataStack.ExpectArity(op.operand, ArityType.any, op.loc);
+            var elements = new List<TypeFrame>();
+            for (int i = 0; i < op.operand; i++)
+            {
+                elements.Add(dataStack.Pop());
+            }
+            elements.ForEach(type => bindStack.Push(type));
+        },
+        OpType.push_bind => () =>
+        {
+            Assert(bindStack.Count > op.operand, "Unreachable, parser error");
+            dataStack.Push(bindStack.ElementAt(op.operand).type, op.loc);
+        },
+        OpType.pop_bind => () =>
+        {
+            for (int i = 0; i < op.operand; i++)
+            {
+                bindStack.Pop();
+            }
         },
         OpType.equal => () =>
         {
@@ -312,9 +335,9 @@ static class TypeChecker
         return new Stack<T>(arr);
     }
 
+    record struct TypeFrame(TokenType type, Loc loc){}
     struct DataStack
     {
-        public record struct TypeFrame(TokenType type, Loc loc){}
         public Stack<TypeFrame> typeFrames = new();
         public int minCount = 0;
         public int stackCount = 0;

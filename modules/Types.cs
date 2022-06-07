@@ -6,7 +6,9 @@ class Types
     {
         public List<OffsetWord> localMemNames = new();
         public List<TypedWord> localVars = new();
+        public List<string> bindings = new();
         public int procMemSize = 0;
+        public int bindCount = 0;
     }
 
     public record struct Contract(List<TokenType> ins, List<TokenType> outs)
@@ -86,6 +88,9 @@ class Types
         end_if,
         end_else,
         end_proc,
+        bind_stack,
+        push_bind,
+        pop_bind,
     }
 
     public enum IntrinsicType
@@ -122,6 +127,7 @@ class Types
         proc    = 1 << 14,
         mem     = 1 << 15,
         _struct = 1 << 16,
+        let     = 1 << 17,
         wordTypes = proc | mem | _struct,
         dataTypes = _int | _ptr | _bool,
         assignTypes = equal | colon,

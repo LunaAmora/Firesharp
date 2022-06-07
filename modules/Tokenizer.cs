@@ -152,6 +152,7 @@ class Tokenizer
             "int"  => KeywordType._int,
             "ptr"  => KeywordType._ptr,
             "bool" => KeywordType._bool,
+            "let"  => KeywordType.let,
             "struct" => KeywordType._struct,
             _ => (KeywordType)(-1)
         });

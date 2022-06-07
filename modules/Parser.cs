@@ -18,6 +18,8 @@ class Parser
     
     static List<OffsetWord> memList = new();
     public static int totalMemSize = 0;
+
+    public static Stack<string> bindStack = new();
     
     static Proc? _currentProc;
     public static bool InsideProc => _currentProc != null;
@@ -97,6 +99,7 @@ class Parser
         TokenType._str     => (OpType.push_str, tok.operand, tok.loc),
         TokenType._word    => wordList[tok.operand] switch
         {
+            var word when TryGetBinding(word, tok.loc) is {} result => result,
             var word when TryGetIntrinsic(word, tok.loc) is {} result => result,
             var word when TryGetLocalMem(word, tok.loc)  is {} result => result,
             var word when TryGetGlobalMem(word, tok.loc) is {} result => result,
@@ -110,6 +113,18 @@ class Parser
         _ => (Op?)Error(tok.loc, $"Token type not implemented in `DefineOp` yet: {tok.type}")
     };
 
+    static Op? TryGetBinding(string word, Loc loc)
+    {
+        if(!InsideProc) return null;
+        var proc = CurrentProc;
+        var index = proc.bindings.FindIndex(bind => bind.Equals(word));
+        if(index >= 0)
+        {
+            return (OpType.push_bind, proc.bindings.Count - 1 - index, loc);
+        }
+        return null;
+    }
+
     static Op? DefineOp(KeywordType type, Loc loc) => type switch
     {
         KeywordType.dup   => (OpType.dup,  loc),
@@ -118,6 +133,7 @@ class Parser
         KeywordType.over  => (OpType.over, loc),
         KeywordType.rot   => (OpType.rot,  loc),
         KeywordType.equal => (OpType.equal,loc),
+        KeywordType.let   => PushBlock(ParseBindings((OpType.bind_stack, loc))),
         KeywordType._if   => PushBlock((OpType.if_start, loc)),
         KeywordType._else => PopBlock(loc, type) switch
         {
@@ -130,6 +146,7 @@ class Parser
             {type: OpType.if_start} => (OpType.end_if, loc),
             {type: OpType._else}    => (OpType.end_else, loc),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
+            {type: OpType.bind_stack} op => (OpType.pop_bind, op.operand, loc),  
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
         },
         _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
@@ -513,6 +530,36 @@ class Parser
         _ => TokenType._keyword
     };
 
+    static Op ParseBindings(Op op)
+    {
+        Assert(InsideProc, "Bindings cannot be used outside of a procedure");
+        var words = new List<string>();
+        var proc = CurrentProc;
+        while(NextIRToken() is {} tok)
+        {
+            if(tok is {type: TokenType._keyword})
+            {
+                if((KeywordType)tok.operand is KeywordType.colon)
+                {
+                    proc.bindings.AddRange(words.Reverse<string>());
+                    op.operand = words.Count;
+                    break;
+                }
+                Error(tok.loc, $"Expected `:` to close binding definition, but found: {(KeywordType)tok.operand}");
+            }
+            else if(tok is {type: TokenType._word})
+            {
+                words.Add(wordList[tok.operand]);
+            }
+            else
+            {
+                Error(tok.loc, $"Expected only words on binding definition, but found: {tok.type}");
+                break;
+            }
+        }
+        return op;
+    }
+
     static Op? DefineProc(string name, Op op, Contract contract)
     {
         Assert(!InsideProc, op.loc, "Cannot define a procedure inside of another procedure");
@@ -579,7 +626,7 @@ class Parser
         return false;
     }
 
-    static Op? PushBlock(Op? op)
+    static Op PushBlock(Op op)
     {
         if(op is {} o) opBlock.Push(o);
         return op;
