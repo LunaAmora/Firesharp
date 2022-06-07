@@ -38,7 +38,8 @@ static class Generator
             output.WriteLine("(func $aloc_local (param i32) global.get $LOCAL_STACK local.get 0 i32.add global.set $LOCAL_STACK)");
             output.WriteLine("(func $free_local (param i32) global.get $LOCAL_STACK local.get 0 i32.sub global.set $LOCAL_STACK)");
             output.WriteLine("(func $bind_local (param i32) global.get $LOCAL_STACK local.get 0 i32.store i32.const 4 call $aloc_local)");
-            output.WriteLine("(func $push_bind  (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub i32.load)\n");
+            output.WriteLine("(func $push_local (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub)");
+            output.WriteLine("(func $push_bind  (param i32) (result i32) local.get 0 call $push_local i32.load)\n");
 
             varList.ForEach(vari => output.WriteLine($"(global ${vari.name} (mut i32) (i32.const {vari.value}))\n"));
 
@@ -80,7 +81,7 @@ static class Generator
     static string GenerateOp(Op op) => op.type switch
     {
         OpType.push_global_mem => $"  i32.const {finalDataSize + op.operand}",
-        OpType.push_local_mem  => $"  global.get $LOCAL_STACK i32.const {op.operand + ((CurrentProc.bindCount + 1) * 4)} i32.sub",
+        OpType.push_local_mem  => $"  i32.const {(CurrentProc.bindCount + 1) * 4 + op.operand} call $push_local",
         OpType.store_global => $"  global.set ${varList[op.operand].name}",
         OpType.load_global  => $"  global.get ${varList[op.operand].name}",
         OpType.store_local => $"  local.set ${CurrentProc.localVars[op.operand].name}",
@@ -103,7 +104,7 @@ static class Generator
         OpType.end_else  => "  end",
         OpType.end_proc  => ")\n".PrependProc(op),
         OpType.bind_stack => BindValues(op.operand),
-        OpType.push_bind  => $"  i32.const {(op.operand + 1)*4} call $push_bind",
+        OpType.push_bind  => $"  i32.const {(op.operand + 1) * 4} call $push_bind",
         OpType.pop_bind   => PopBind(op.operand),
         OpType.intrinsic => (IntrinsicType)op.operand switch
         {
