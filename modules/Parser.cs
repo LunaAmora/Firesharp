@@ -445,11 +445,11 @@ class Parser
                     if(evalStack.Count > 1)
                     {
                         var typs = evalStack.Select(f => f.frame).ToList().ListTypes(true);
-                        Error(token.loc, $"Expected only one value on the stack in the end of the constant evaluation, but found: `{typs}`");
+                        Error(token.loc, $"Expected only one value on the stack in the end of the compile-time evaluation, but found: {typs}");
                     }
                     else if(evalStack.Count == 0)
                     {
-                        Error(token.loc, $"Expected a value on the stack in the end of the constant evaluation, but found nothing");
+                        Error(token.loc, $"Expected a value on the stack in the end of the compile-time evaluation, but found nothing");
                     }
                     else
                     {
@@ -626,7 +626,7 @@ class Parser
         {
             if (CompileEval(out (TypeFrame frame, int value, int skip) eval))
             {
-                Assert(eval.frame.type == tokType, $"Expected type `{TypeNames(tokType)}` on the stack at the end of the constant evaluation, but found: `{TypeNames(eval.frame.type)}`");
+                Assert(eval.frame.type == tokType, $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
                 for (int i = 0; i < eval.skip; i++) NextIRToken();
                 if(keyword is KeywordType.colon)
                 {
