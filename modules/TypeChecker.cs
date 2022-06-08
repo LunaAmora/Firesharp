@@ -260,20 +260,30 @@ static class TypeChecker
     {
         for (int i = 0; i < arityN; i++)
         {
-            var a = stack.ElementAt(i);
-            if (!type.Equals(a.type)) 
-            {
-                Error(loc, $"Expected type `{TypeNames(type)}`, but found `{TypeNames(a.type)}`",
-                    $"{a.loc} [INFO] The type found was declared here");
-                return false;
-            }
+            if (!ExpectType(stack.ElementAt(i), type, loc)) return false;
         }
         return true;
     }
-    
+
+    public static bool ExpectType(TypeFrame frame, TokenType expected, Loc loc)
+    {
+        if (!expected.Equals(frame.type))
+        {
+            Error(loc, $"Expected type `{TypeNames(expected)}`, but found `{TypeNames(frame.type)}`",
+                $"{frame.loc} [INFO] The type found was declared here");
+            return false;
+        }
+        return true;
+    }
+
     static bool ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
     {
         stack.ExpectStackSize(contract.Count(), loc);
+        return ExpectArity(stack.typeFrames, loc, contract);
+    }
+
+    static bool ExpectArity(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
+    {
         for (int i = 0; i < contract.Count(); i++)
         {
             var stk = stack.ElementAt(i);
@@ -289,6 +299,9 @@ static class TypeChecker
     }
 
     static bool ExpectStackExact(this DataStack stack, Loc loc, params TokenType[] contract)
+        => ExpectStackExact(stack.typeFrames, loc, contract);
+
+    public static bool ExpectStackExact(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
     {
         Assert(stack.Count() == contract.Count(), loc,
         $"Expected stack at the end of the procedure does not match the procedure contract:",
@@ -307,7 +320,7 @@ static class TypeChecker
 
     static string ListTypes(this DataStack types) => ListTypes(types.typeFrames.ToList(), false);
     static string ListTypes(this DataStack types, bool verbose) => ListTypes(types.typeFrames.ToList(), verbose);
-    public static string ListTypes(this List<TypeFrame> types, bool verbose)
+    public static string ListTypes(this IEnumerable<TypeFrame> types, bool verbose)
     {
         var typs = ListTypes(types.Reverse<TypeFrame>().Select(t => t.type).ToList());
         if (verbose)
@@ -339,6 +352,8 @@ static class TypeChecker
     public record struct TypeFrame(TokenType type, Loc loc)
     {
         public static implicit operator TypeFrame((TokenType type, Loc loc) value)
+            => new TypeFrame(value.type, value.loc);
+        public static implicit operator TypeFrame(IRToken value)
             => new TypeFrame(value.type, value.loc);
     }
     

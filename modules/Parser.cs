@@ -387,10 +387,10 @@ class Parser
             {
                 NextIRToken();
                 NextIRToken();
-                if(CompileEval(out (TypeFrame frame, int value, int skip) varEval))
+                if(CompileEval(out (TypeFrame frame, int value) varEval, out int skip))
                 {
                     Assert(varEval.frame.type is not TokenType._any, varEval.frame.loc, "Undefined variable value is not allowed");
-                    for (int a = 0; a < varEval.skip; a++) NextIRToken();
+                    for (int a = 0; a < skip; a++) NextIRToken();
                     TypedWord newVar = new(word, varEval.value, varEval.frame.type);
                     if (InsideProc) CurrentProc.localVars.Add(newVar);
                     else varList.Add(newVar);
@@ -405,12 +405,14 @@ class Parser
                     NextIRToken();
                     NextIRToken();
 
-                    if(CompileEval(out (TypeFrame frame, int value, int skip) eval))
+                    if(CompileEval(out (TypeFrame frame, int value) eval, out int skip))
                     {
-                        Assert(eval.frame.type is not TokenType._any, eval.frame.loc, "Undefined constant value is not allowed");
-                        for (int a = 0; a < eval.skip; a++) NextIRToken();
-                        constList.Add((word, eval.value, eval.frame.type));
-                        return true;
+                        if(eval.frame.type is not TokenType._any)
+                        {
+                            for (int a = 0; a < skip; a++) NextIRToken();
+                            constList.Add((word, eval.value, eval.frame.type));
+                            return true;
+                        }
                     }
                     
                     result = DefineProc(word, (OpType.prep_proc, loc), new());
@@ -433,9 +435,16 @@ class Parser
         };
     }
 
-    static bool CompileEval(out (TypeFrame frame, int value, int skip) result)
+    static bool CompileEval(out (TypeFrame frame, int value) result, out int skip)
     {
-        var evalStack = new Stack<(TypeFrame frame, int value)>();
+        var ret = CompileEval(1, out Stack<(TypeFrame frame, int value)> res, out skip);
+        result = res.Pop();
+        return(ret);
+    }
+
+    static bool CompileEval(int quantity, out Stack<(TypeFrame frame, int value)> result, out int skip)
+    {
+        result = new Stack<(TypeFrame frame, int value)>();
         IRToken token = default;
         for (int i = 0; i < IRTokens.Count; i++)
         {
@@ -444,31 +453,29 @@ class Parser
             {
                 if((KeywordType)token.operand is KeywordType.end)
                 {
-                    if(evalStack.Count > 1)
+                    if(result.Count == 0 && i == 0)
                     {
-                        var typs = evalStack.Select(f => f.frame).ToList().ListTypes(true);
-                        Error(token.loc, $"Expected only one value on the stack in the end of the compile-time evaluation, but found: {typs}");
+                        result.Push(((TokenType._any, token.loc), 0));
+                        skip = 1;
+                        return true;
                     }
-                    else if(evalStack.Count == 0)
+                    else if(result.Count != quantity)
                     {
-                        if(i == 0)
-                        {
-                            result = ((TokenType._any, token.loc), 0, 1);
-                            return true;
-                        }
-                        Error(token.loc, $"Expected a value on the stack in the end of the compile-time evaluation, but found nothing");
+                        var typs = result.Select(f => f.frame).ToList().ListTypes(true);
+                        Error(token.loc, $"Expected {quantity} value{(quantity > 1 ? "s" : "")} on the stack in the end of the compile-time evaluation, but found: {typs}");
+                        break;
                     }
                     else
                     {
-                        var last = evalStack.Pop();
-                        result = (last.frame, last.value, i + 1);
+                        skip = i+1;
                         return true;
                     }
                 }
             }
-            if(!EvalToken(token, evalStack)()) break;
+            if(!EvalToken(token, result)()) break;
         }
-        result = (new(token.type, token.loc), token.operand, 0);
+        result.Push(default);
+        skip = 0;
         return false;
     }
 
@@ -487,6 +494,13 @@ class Parser
         TokenType._ptr => () =>
         {
             evalStack.Push(((TokenType._ptr, tok.loc), tok.operand));
+            return true;
+        },
+        TokenType._str => () =>
+        {
+            var data = dataList.ElementAt(tok.operand);
+            evalStack.Push(((TokenType._int, tok.loc), data.size));
+            evalStack.Push(((TokenType._ptr, tok.loc), data.offset));
             return true;
         },
         TokenType._word => () => (wordList[tok.operand] switch
@@ -589,13 +603,37 @@ class Parser
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after variable type definition");
         ExpectKeyword(loc, KeywordType.equal, "`=` after keyword `:`");
-        ExpectKeyword(loc, KeywordType.end, "`end` after variable declaration");
-        foreach (var member in structType.members)
+
+        var members = structType.members;
+        var success = CompileEval(members.Count, out Stack<(TypeFrame frame, int value)> result, out int skip);
+        Assert(success, loc, "Failed to parse an valid struct value at compile-time evaluation");
+
+        for (int a = 0; a < skip; a++) NextIRToken();
+
+        if(result.Count == 1 && result.Pop() is {frame: {type: TokenType._any}})
         {
-            TypedWord structVar = ($"{word}.{member.name}", member.defaultValue, member.type);
-            if (InsideProc) CurrentProc.localVars.Add(structVar);
-            else varList.Add(structVar);
+            foreach (var member in members)
+            {
+                var structVar = ($"{word}.{member.name}", member.defaultValue, member.type);
+                if (InsideProc) CurrentProc.localVars.Add(structVar);
+                else varList.Add(structVar);
+            }
         }
+        else
+        {
+            var frames = result.Select(element => element.frame).ToList();
+            var expected = members.Select(member => member.type).Reverse().ToArray();
+            TypeChecker.ExpectStackExact(frames, loc, expected);
+            
+            for (int a = 0; a < members.Count; a++)
+            {
+                var item = result.ElementAt(a);
+                var structVar = ($"{word}.{members[result.Count - 1 - a].name}", item.value, item.frame.type);
+                if (InsideProc) CurrentProc.localVars.Add(structVar);
+                else varList.Add(structVar);
+            }
+        }
+
         structVarsList.Add((word, wordIndex));
     }
 
@@ -631,10 +669,10 @@ class Parser
         var assignType = ExpectKeyword(loc, KeywordType.assignTypes, $"`:` or `=` after `{TypeNames(tokType)}`");
         if (assignType is {operand: int op} && (KeywordType)op is {} keyword)
         {
-            if (CompileEval(out (TypeFrame frame, int value, int skip) eval))
+            if (CompileEval(out (TypeFrame frame, int value) eval, out int skip))
             {
                 Assert((tokType | TokenType._any).HasFlag(eval.frame.type), $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
-                for (int i = 0; i < eval.skip; i++) NextIRToken();
+                for (int i = 0; i < skip; i++) NextIRToken();
                 if(keyword is KeywordType.colon)
                 {
                     constList.Add((word, eval.value, tokType));

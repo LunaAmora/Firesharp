@@ -41,8 +41,9 @@ static class Generator
             output.WriteLine("(func $push_local (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub)");
             output.WriteLine("(func $push_bind  (param i32) (result i32) local.get 0 call $push_local i32.load)\n");
 
-            varList.ForEach(vari => output.WriteLine($"(global ${vari.name} (mut i32) (i32.const {vari.value}))\n"));
-
+            varList.ForEach(vari => output.WriteLine($"(global ${vari.name} (mut i32) (i32.const {vari.value}))"));
+            if(varList.Count > 0) output.WriteLine();
+            
             program.ForEach(op => output.TryWriteLine(GenerateOp(op)));
 
             output.WriteLine("(export \"_start\" (func $start))\n");

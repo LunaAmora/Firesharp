@@ -29,7 +29,7 @@ constant_value :: 34 dup 1 + + end
 variable_value int := end
 
 start ::
-  string_variable str := end
+  string_variable str := "Default Text\n" end
   constant_value !variable_value
 
   "Hello World!\n"
