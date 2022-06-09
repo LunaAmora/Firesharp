@@ -13,7 +13,7 @@ class Tokenizer
 
     public static List<SizedWord> dataList = new();
     public static List<string> wordList = new();
-    static int totalDataSize = 0;
+    public static int totalDataSize = 0;
 
     public static int finalDataSize => ((totalDataSize + 3)/4)*4;
     

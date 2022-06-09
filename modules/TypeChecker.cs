@@ -25,22 +25,11 @@ static class TypeChecker
             dataStack.Push(TokenType._int, op.loc);
             dataStack.Push(TokenType._ptr, op.loc);
         },
-        OpType.load_global => () => dataStack.Push(varList[op.operand].type, op.loc),
-        OpType.store_global => () => 
-        {
-            dataStack.ExpectArity(1, varList[op.operand].type, op.loc);
-            dataStack.Pop();
-        },
-        OpType.store_local => () =>
+        OpType.push_global => () => dataStack.Push(TokenType._ptr, op.loc),
+        OpType.push_local => () =>
         {
             Assert(InsideProc, "Unreachable, parser error.");
-            dataStack.ExpectArity(1, CurrentProc.localVars[op.operand].type, op.loc);
-            dataStack.Pop();
-        },
-        OpType.load_local => () =>
-        {
-            Assert(InsideProc, "Unreachable, parser error.");
-            dataStack.Push(CurrentProc.localVars[op.operand].type, op.loc);
+            dataStack.Push(TokenType._ptr, op.loc);
         },
         OpType.swap => () => 
         {
@@ -206,6 +195,12 @@ static class TypeChecker
                 dataStack.ExpectArity(1, ArityType.any, op.loc);
                 dataStack.Pop();
                 dataStack.Push(TokenType._ptr, op.loc);
+            },
+            IntrinsicType.cast_int=> () =>
+            {
+                dataStack.ExpectArity(1, ArityType.any, op.loc);
+                dataStack.Pop();
+                dataStack.Push(TokenType._int, op.loc);
             },
             IntrinsicType.load32 => () =>
             {
