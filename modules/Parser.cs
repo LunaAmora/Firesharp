@@ -94,11 +94,25 @@ class Parser
             "@32" => IntrinsicType.load32,
             "!32" => IntrinsicType.store32,
             "fd_write" => IntrinsicType.fd_write,
-            "#int" => IntrinsicType.cast,
-            "#bool" => IntrinsicType.cast + 1,
-            "#ptr" => IntrinsicType.cast + 2,
+            {} when word.StartsWith('#') && TryParseCastType(word, out IntrinsicType cast)
+                => cast,
             _ => (IntrinsicType)(-1)
         });
+        return result >= 0;
+    }
+
+    static bool TryParseCastType(string word, out IntrinsicType result)
+    {
+        word = word.Split('#')[1];
+        result = word switch
+        {
+            "int"  => IntrinsicType.cast,
+            "bool" => IntrinsicType.cast + 1,
+            "ptr"  => IntrinsicType.cast + 2,
+            _ when TryGetTypeName(word) is {} type 
+                => (IntrinsicType)DataTypeToCast(TokenType._struct + structList.IndexOf(type)),
+            _ => (IntrinsicType)(-1)
+        };
         return result >= 0;
     }
 
