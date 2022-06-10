@@ -32,6 +32,18 @@ static class TypeChecker
             Assert(InsideProc, "Unreachable, parser error.");
             dataStack.Push(TokenType._ptr, op.loc);
         },
+        OpType.offset => () =>
+        {
+            dataStack.ExpectArity(1, ArityType.any, op.loc);
+            var A = dataStack.Pop();
+            Assert(A.type >= TokenType._struct, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+            var word = wordList[op.operand].Split(".*")[1];
+            var stk = structList[A.type - TokenType._struct];
+            var index = stk.members.FindIndex(mem => mem.name.Equals(word));
+            Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
+            op.operand = index * 4;
+            dataStack.Push((int)TokenType._struct + stk.members[index].type - (int)TokenType._int, op.loc);
+        },
         OpType.offset_load => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
@@ -205,7 +217,7 @@ static class TypeChecker
             },
             IntrinsicType.store32 => () =>
             {
-                dataStack.ExpectArity(op.loc, TokenType._ptr, TokenType._any);
+                dataStack.ExpectArity(op.loc, TokenType._any, TokenType._any);
                 dataStack.Pop();
                 dataStack.Pop();
             },
@@ -221,8 +233,9 @@ static class TypeChecker
             {} cast when cast >= IntrinsicType.cast => () =>
             {
                 dataStack.ExpectArity(1, ArityType.any, op.loc);
-                dataStack.Pop();
+                var A = dataStack.Pop();
                 dataStack.Push(TokenType._int + (int)(cast - IntrinsicType.cast), op.loc);
+                // Info($"Casting {A.type} to {TypeNames(TokenType._int + (int)(cast - IntrinsicType.cast))}");
             },
             _ => (Action) (() => Error(op.loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`"))
         })(),
@@ -299,6 +312,7 @@ static class TypeChecker
 
     public static bool ExpectStackExact(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
     {
+        // Info(loc, $"eval types:   {ListTypes(stack, false)}");
         Assert(stack.Count() == contract.Count(), loc,
         $"Expected stack at the end of the procedure does not match the procedure contract:",
             $"{loc} [INFO] Expected types: {ListTypes(contract.ToList())}",

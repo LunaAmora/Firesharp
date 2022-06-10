@@ -97,6 +97,7 @@ static class Generator
         OpType.push_global => $"  i32.const {finalDataSize + op.operand * 4}",
         OpType.push_local  => $"  i32.const {(CurrentProc.bindCount + 1 + op.operand) * 4 + CurrentProc.procMemSize} call $push_local",
         OpType.offset_load => $"  i32.const {op.operand} i32.add i32.load",
+        OpType.offset      => $"  i32.const {op.operand} i32.add",
         OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
         OpType.push_int  or
         OpType.push_ptr  or

@@ -45,10 +45,14 @@ class Types
         _word,
         _any,
         _str,
-        _int, // from this index onwards, all numbers corresponds to a dataType
+        _int, // from this index onwards, corresponds to a dataType
         _bool,
         _ptr,
-        _struct, // from this index onwards, all numbers corresponds to an index in the struct list
+        _struct, // from this index onwards, corresponds to an pointer DataType
+        // *int
+        // *bool
+        // *ptr
+        // *structName from this index onwards, corresponds to an index in the struct list
     }
     
     public enum OpType
@@ -62,6 +66,7 @@ class Types
         push_local,
         push_global,
         offset_load,
+        offset,
         intrinsic,
         dup,
         drop,
@@ -90,7 +95,7 @@ class Types
         load32,
         store32,
         fd_write,
-        cast // from this index onwards, all numbers corresponds to a dataType starting at `_int`
+        cast // from this index onwards, corresponds to a dataType starting at `_int`
     }
 
     [Flags]

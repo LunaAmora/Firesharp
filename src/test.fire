@@ -2,19 +2,10 @@ true  :: 1 #bool end
 false :: 0 #bool end
 null  :: 0 #ptr end
 
-!bool : bool ptr : !32 end
-!ptr  : ptr  ptr : !32 end
-!int  : int  ptr : !32 end
-@bool : ptr -> bool : @32 #bool end
-@ptr  : ptr -> ptr  : @32 #ptr end
-@int  : ptr -> int  : @32 end
+inc32 : *int : dup .@ 1 + swap !32 end
+dec32 : *int : dup .@ 1 - swap !32 end
 
-inc32 : ptr : dup @32 1 + swap !32 end
-dec32 : ptr : dup @32 1 - swap !32 end
-
-+ptr : int ptr -> ptr : swap #ptr + end
-ptr+ : ptr int -> ptr : #ptr + end
-ptr- : ptr int -> ptr : #ptr - end
+ptr.inc : *ptr : dup .@ 1 #ptr + swap !32 end
 
 str :
   len  int
@@ -42,8 +33,22 @@ print : str :
   !string *string puts
 end
 
-hello str :: "Hello World\n" end
+trim-left : *str :
+  dup 
+  .*len  dec32
+  .*data ptr.inc
+end
 
 start ::
-  hello print
+  hello str := "Hello World!\n" end
+  *hello trim-left
+  *hello trim-left
+  *hello trim-left
+  *hello trim-left
+  *hello trim-left
+
+  *hello dup .len swap .data print
+  *hello @str                print
+  hello                      print
+  *hello                     puts
 end
