@@ -90,7 +90,7 @@ class Types
         load32,
         store32,
         fd_write,
-        cast
+        cast // from this index onwards, all numbers corresponds to a dataType starting at `_int`
     }
 
     [Flags]

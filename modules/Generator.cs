@@ -38,11 +38,11 @@ static class Generator
             output.WriteLine("(func $aloc_local (param i32) global.get $LOCAL_STACK local.get 0 i32.add global.set $LOCAL_STACK)");
             output.WriteLine("(func $free_local (param i32) global.get $LOCAL_STACK local.get 0 i32.sub global.set $LOCAL_STACK)");
             output.WriteLine("(func $bind_local (param i32) global.get $LOCAL_STACK local.get 0 i32.store i32.const 4 call $aloc_local)");
-            output.WriteLine("(func $push_local (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub)\n");
+            output.WriteLine("(func $push_local (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub)");
             
-            program.ForEach(op => output.TryWriteLine(GenerateOp(op)));
+            program.ForEach(op => output.TryWriteLine(GenerateOp(op), op.type.ToString()));
 
-            output.WriteLine("(export \"_start\" (func $start))\n");
+            output.WriteLine("\n(export \"_start\" (func $start))\n");
 
             if (dataList.Count > 0 || varList.Count > 0)
             {
@@ -85,9 +85,9 @@ static class Generator
         Assert(result.ExitCode == 0, "External command error, please report this in the project's github!");
     }
     
-    static void TryWriteLine(this StreamWriter writer, string text)
+    static void TryWriteLine(this StreamWriter writer, string text, string comment)
     {
-        if (!string.IsNullOrEmpty(text)) writer.WriteLine(text);
+        if (!string.IsNullOrEmpty(text)) writer.WriteLine($"{text} ;; {comment}");
     }
 
     static string GenerateOp(Op op) => op.type switch
@@ -107,13 +107,13 @@ static class Generator
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
         OpType.call      => $"  call ${procList[op.operand].name}",
-        OpType.prep_proc => "(func $".AppendProc(op),
+        OpType.prep_proc => "\n(func $".AppendProc(op),
         OpType.equal     => "  i32.eq",
         OpType.if_start  => "  if".AppendContract(op),
         OpType._else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
-        OpType.end_proc  => ")\n".PrependProc(op),
+        OpType.end_proc  => ")".PrependProc(op),
         OpType.bind_stack => BindValues(op.operand),
         OpType.push_bind  => $"  i32.const {(op.operand + 1) * 4} call $push_local i32.load",
         OpType.pop_bind   => PopBind(op.operand),
