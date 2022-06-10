@@ -10,9 +10,9 @@ class Parser
     public static List<Proc> procList = new();
     public static List<TypedWord> varList = new();
     public static int totalVarsSize => varList.Count * 4;
+    public static List<StructType> structList = new();
 
     static List<Op> program = new();
-    static List<StructType> structList = new();
     static Stack<Op> opBlock = new();
 
     static List<OffsetWord> structVarsList = new();
@@ -93,24 +93,40 @@ class Parser
             "%" => IntrinsicType.div,
             "@32" => IntrinsicType.load32,
             "!32" => IntrinsicType.store32,
-            "#int" => IntrinsicType.cast_int,
-            "#ptr" => IntrinsicType.cast_ptr,
-            "#bool" => IntrinsicType.cast_bool,
             "fd_write" => IntrinsicType.fd_write,
+            "#int" => IntrinsicType.cast,
+            "#bool" => IntrinsicType.cast + 1,
+            "#ptr" => IntrinsicType.cast + 2,
             _ => (IntrinsicType)(-1)
         });
         return result >= 0;
     }
 
+    public static string TypeNames(TokenType type) => type switch
+    {
+        TokenType._keyword => "Keyword",
+        TokenType._word => "Word",
+        TokenType._any  => "Any",
+        TokenType._str  => "String",
+        TokenType._int  => "Integer",
+        TokenType._bool => "Boolean",
+        TokenType._ptr  => "Pointer",
+        {} typ when typ >= TokenType._struct 
+            => $"{structList[typ-TokenType._struct].name} Struct",
+        _ => Error($"DataType name not implemented: {type}")
+    };
+
     static Op? DefineOp(IRToken tok) => tok.type switch
     {
         {} typ when ExpectProc(typ, tok.loc, $"Token type cannot be used outside of a procedure: `{TypeNames(typ)}`") => null,
         TokenType._keyword => DefineOp((KeywordType)tok.operand, tok.loc),
-        TokenType._int     => (OpType.push_int, tok.operand, tok.loc),
         TokenType._str     => (OpType.push_str, tok.operand, tok.loc),
+        TokenType._int     => (OpType.push_int, tok.operand, tok.loc),
+        TokenType._bool    => (OpType.push_bool, tok.operand, tok.loc),
         TokenType._ptr     => (OpType.push_ptr, tok.operand, tok.loc),
         TokenType._word    => wordList[tok.operand] switch
         {
+            var word when TryGetOffset(word, tok.operand, tok.loc) is {} result => result,
             var word when TryGetBinding(word, tok.loc) is {} result => result,
             var word when TryGetIntrinsic(word, tok.loc) is {} result => result,
             var word when TryGetLocalMem(word, tok.loc)  is {} result => result,
@@ -124,18 +140,6 @@ class Parser
         },
         _ => (Op?)Error(tok.loc, $"Token type not implemented in `DefineOp` yet: {tok.type}")
     };
-
-    static Op? TryGetBinding(string word, Loc loc)
-    {
-        if(!InsideProc) return null;
-        var proc = CurrentProc;
-        var index = proc.bindings.FindIndex(bind => bind.Equals(word));
-        if(index >= 0)
-        {
-            return (OpType.push_bind, proc.bindings.Count - 1 - index, loc);
-        }
-        return null;
-    }
 
     static Op? DefineOp(KeywordType type, Loc loc) => type switch
     {
@@ -163,6 +167,18 @@ class Parser
         },
         _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
     };
+
+    static Op? TryGetBinding(string word, Loc loc)
+    {
+        if(!InsideProc) return null;
+        var proc = CurrentProc;
+        var index = proc.bindings.FindIndex(bind => bind.Equals(word));
+        if(index >= 0)
+        {
+            return (OpType.push_bind, proc.bindings.Count - 1 - index, loc);
+        }
+        return null;
+    }
 
     static bool ExpectProc(TokenType type, Loc loc, string errorText)
     {
@@ -205,6 +221,15 @@ class Parser
         return null;
     }
 
+    static Op? TryGetOffset(string word, int index, Loc loc)
+    {
+        if(word.StartsWith('.'))
+        {
+            return (OpType.offset_load, index, loc);
+        }
+        else return null;
+    }
+
     static Op? TryGetLocalMem(string word, Loc loc)
     {
         if(InsideProc && CurrentProc is {} proc)
@@ -225,10 +250,16 @@ class Parser
         var proc = CurrentProc;
         
         var store = false;
+        var pointer = false;
         if (word.StartsWith('!'))
         {
             word = word.Split('!')[1];
             store = true;
+        }
+        else if(word.StartsWith('*'))
+        {
+            word = word.Split('*')[1];
+            pointer = true;
         }
 
         var index = proc.localVars.FindIndex(val => val.name.Equals(word));
@@ -236,7 +267,7 @@ class Parser
         {
             program.Add((OpType.push_local, index, loc));
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
-            else
+            else if(!pointer)
             {
                 program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
                 program.Add((OpType.intrinsic, DataTypeToCast(proc.localVars[index].type), loc));
@@ -247,18 +278,27 @@ class Parser
         index = proc.localVars.FindIndex(val => val.name.StartsWith($"{word}."));
         if (index >= 0 && TryGetStructVars(word) is {} structType)
         {
-            var members = new List<StructMember>(structType.members);
-            if(store) members.Reverse();
-
-            foreach (var member in members)
+            if(pointer)
             {
-                index = proc.localVars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
+                var member = structType.members.Last().name;
+                index = proc.localVars.FindIndex(val => $"{word}.{member}".Equals(val.name));
+                var i = structList.FindIndex(stk => stk.name.Equals(structType.name));
                 program.Add((OpType.push_local, index, loc));
-                if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
-                else
+                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._struct + i), loc));
+            }
+            else
+            {
+                var members = new List<StructMember>(structType.members);
+                foreach (var member in members)
                 {
-                    program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
-                    program.Add((OpType.intrinsic, DataTypeToCast(member.type), loc));
+                    index = proc.localVars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
+                    program.Add((OpType.push_local, index, loc));
+                    if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
+                    else
+                    {
+                        program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
+                        program.Add((OpType.intrinsic, DataTypeToCast(member.type), loc));
+                    }
                 }
             }
             return true;
@@ -270,10 +310,16 @@ class Parser
     {
         result = null;
         var store = false;
+        var pointer = false;
         if (word.StartsWith('!'))
         {
             word = word.Split('!')[1];
             store = true;
+        }
+        else if(word.StartsWith('*'))
+        {
+            word = word.Split('*')[1];
+            pointer = true;
         }
 
         var index = varList.FindIndex(val => word.Equals(val.name));
@@ -281,7 +327,7 @@ class Parser
         {
             program.Add((OpType.push_global, index, loc));
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
-            else
+            else if(!pointer)
             {
                 program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
                 program.Add((OpType.intrinsic, DataTypeToCast(varList[index].type), loc));
@@ -298,6 +344,18 @@ class Parser
                 index = varList.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
                 program.Add((OpType.push_global, index, loc));
                 if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
+                else if (pointer)
+                {
+                    if (TryGetStructVars(word) is {} stk)
+                    {
+                        word = stk.name;
+                        var i = structList.FindIndex(type => type.name.Equals(word));
+
+                        program.Add((OpType.intrinsic, DataTypeToCast(TokenType._struct + i), loc));
+                        return true;
+                    }
+                    else return false;
+                }
                 else
                 {
                     program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
@@ -313,7 +371,7 @@ class Parser
     static StructType? TryGetStructVars(string word)
     {
         var index = structVarsList.FindIndex(vars => vars.name.Equals(word));
-        if (index != - 1)
+        if (index >= 0)
         {
             return TryGetTypeName(wordList[structVarsList[index].offset]);
         }
@@ -323,18 +381,31 @@ class Parser
     static StructType? TryGetTypeName(string word)
     {
         var index = structList.FindIndex(type => type.name.Equals(word));
-        if (index != - 1) return structList[index];
+        if (index >= 0) return structList[index];
         return null;
     }
     
     static Op? TryGetGlobalMem(string word, Loc loc)
     {
         var index = memList.FindIndex(mem => mem.name.Equals(word));
-        if (index != - 1)
+        if (index >= 0)
         {
             return (OpType.push_global_mem, memList[index].offset, loc);
         }
         return null;
+    }
+
+    static bool TryGetStructPointer(string word, out int structId)
+    {
+        if(word.StartsWith('*')) word = word.Split('*')[1];
+        else
+        {
+            structId = -1;
+            return false;
+        }
+
+        structId = structList.FindIndex(type => type.name.Equals(word));
+        return (structId >= 0);
     }
 
     static bool TryDefineContext(string word, Loc loc, out Op? result)
@@ -371,7 +442,8 @@ class Parser
                 }
                 else if(colonCount == 1 && token.type is TokenType._word)
                 {
-                    if (TryGetTypeName(wordList[token.operand]) is {} structType)
+                    if (TryGetTypeName(wordList[token.operand]) is {} structType ||
+                        TryGetStructPointer(wordList[token.operand], out int _))
                     {
                         context = KeywordType.proc;
                         break;
@@ -548,22 +620,10 @@ class Parser
                     evalStack.Push(((B.frame.type, op.loc), B.value - A.value));
                     return true;
                 },
-                IntrinsicType.cast_bool => () =>
+                {} cast when cast >= IntrinsicType.cast => () =>
                 {
                     var A = evalStack.Pop();
-                    evalStack.Push(((TokenType._bool, op.loc), A.value == 0 ? 0 : 1));
-                    return true;
-                },
-                IntrinsicType.cast_ptr => () =>
-                {
-                    var A = evalStack.Pop();
-                    evalStack.Push(((TokenType._ptr, op.loc), A.value));
-                    return true;
-                },
-                IntrinsicType.cast_int => () =>
-                {
-                    var A = evalStack.Pop();
-                    evalStack.Push(((TokenType._int, op.loc), A.value));
+                    evalStack.Push(((TokenType._int + (int)(cast - IntrinsicType.cast), op.loc), A.value));
                     return true;
                 },
                 _ => (Func<bool>)(() => false),
@@ -654,10 +714,19 @@ class Parser
             
             for (int a = 0; a < members.Count; a++)
             {
-                var item = result.ElementAt(a);
-                var structVar = ($"{word}.{members[result.Count - 1 - a].name}", item.value, item.frame.type);
-                if (InsideProc) CurrentProc.localVars.Add(structVar);
-                else varList.Add(structVar);
+                var name = $"{word}.{members[a].name}";
+                if (InsideProc)
+                {
+                    var item = result.ElementAt(a);
+                    var structVar = (name, item.value, item.frame.type);
+                    CurrentProc.localVars.Add(structVar);
+                }
+                else
+                {
+                    var item = result.ElementAt(result.Count - 1 - a);
+                    var structVar = (name, item.value, item.frame.type);
+                    varList.Add(structVar);
+                }
             }
         }
 
@@ -754,20 +823,28 @@ class Parser
                     sb.Append($": `{typ}`");
                     return Assert(false, tok.loc, sb.ToString());
                 }
+                continue;
             }
-            else if (tok is {type: TokenType._word} && TryGetTypeName(wordList[tok.operand]) is {} structType)
+            else if (tok is {type: TokenType._word})
             {
-                foreach (var member in structType.members)
+                if (TryGetTypeName(wordList[tok.operand]) is {} structType)
                 {
-                    if(!foundArrow) ins.Add(member.type);
-                    else outs.Add(member.type);
+                    foreach (var member in structType.members)
+                    {
+                        if(!foundArrow) ins.Add(member.type);
+                        else outs.Add(member.type);
+                    }
+                    continue;
+                }
+                else if (TryGetStructPointer(wordList[tok.operand], out int structId))
+                {
+                    if(!foundArrow) ins.Add(TokenType._struct + structId);
+                    else outs.Add(TokenType._struct + structId);
+                    continue;
                 }
             }
-            else
-            {
-                sb.Append($": `{TypeNames(tok.type)}`");
-                return Assert(false, tok.loc, sb.ToString());
-            }
+            sb.Append($": `{TypeNames(tok.type)}`");
+            return Assert(false, tok.loc, sb.ToString());
         }
         sb.Append(" nothing");
         return Assert(false, op.loc, sb.ToString());
@@ -781,13 +858,11 @@ class Parser
         _ => TokenType._keyword
     };
 
-    static int DataTypeToCast(TokenType type) => type switch
+    static int DataTypeToCast(TokenType type)
     {
-        TokenType._int => (int)IntrinsicType.cast_int,
-        TokenType._ptr => (int)IntrinsicType.cast_ptr,
-        TokenType._bool => (int)IntrinsicType.cast_bool,
-        _ => -1
-    };
+        if(type < TokenType._int) return -1;
+        return (int)IntrinsicType.cast + (int)(type - TokenType._int);
+    }
 
     static Op ParseBindings(Op op)
     {
@@ -812,7 +887,7 @@ class Parser
             }
             else
             {
-                Error(tok.loc, $"Expected only words on binding definition, but found: {tok.type}");
+                Error(tok.loc, $"Expected only words on binding definition, but found: {TypeNames(tok.type)}");
                 break;
             }
         }

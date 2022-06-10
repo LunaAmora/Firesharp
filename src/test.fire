@@ -8,6 +8,9 @@ null  : -> ptr  : 0 #ptr end
 @ptr  : ptr -> ptr  : @32 #ptr end
 @int  : ptr -> int  : @32 end
 
+inc32 : ptr : dup @32 1 + swap !32 end
+dec32 : ptr : dup @32 1 - swap !32 end
+
 +ptr : int ptr -> ptr : swap #ptr + end
 ptr+ : ptr int -> ptr : #ptr + end
 ptr- : ptr int -> ptr : #ptr - end
@@ -17,32 +20,27 @@ str :
   data ptr
 end
 
-puts : str :
-  ciovec: 8 end
-  written: 4 end
-  ciovec !ptr
-  ciovec 4 ptr+ !int
-  1 ciovec 1 written fd_write drop
+ciovec :
+  buf     ptr
+  buf_len int
 end
 
-constant_value :: 34 dup 1 + + end
-variable_value int := end
+@str : *str -> str :
+  dup .len swap .data
+end
+
+puts : *str :
+  iov ciovec:= end
+  written: 4 end
+  @str swap !iov
+  1 *iov #ptr 1 written fd_write drop
+end
+
+print : str :
+  string str:= end
+  !string *string puts
+end
 
 start ::
-  string_variable str := "Default Text\n" end
-  constant_value !variable_value
-
-  "Hello World!\n"
-  "Other text here!!\n"
-
-  let len data len2 data2 :
-    variable_value 69 = if
-      len data 
-    else 
-      len2 data2
-    end
-    !string_variable
-  end
-
-  string_variable puts
+  "Hello World\n" print
 end

@@ -1,5 +1,6 @@
 namespace Firesharp;
 
+using static Tokenizer;
 using static Parser;
 
 static class TypeChecker
@@ -31,7 +32,19 @@ static class TypeChecker
             Assert(InsideProc, "Unreachable, parser error.");
             dataStack.Push(TokenType._ptr, op.loc);
         },
-        OpType.swap => () => 
+        OpType.offset_load => () =>
+        {
+            dataStack.ExpectArity(1, ArityType.any, op.loc);
+            var A = dataStack.Pop();
+            Assert(A.type >= TokenType._struct, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+            var word = wordList[op.operand].Split('.')[1];
+            var stk = structList[A.type - TokenType._struct];
+            var index = stk.members.FindIndex(mem => mem.name.Equals(word));
+            Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
+            op.operand = index * 4;
+            dataStack.Push(stk.members[index].type, op.loc);
+        },
+        OpType.swap => () =>
         {
             dataStack.ExpectArity(2, ArityType.any, op.loc);
             var A = dataStack.Pop();
@@ -184,24 +197,6 @@ static class TypeChecker
                 dataStack.Pop();
                 dataStack.Push(dataStack.Pop().type, op.loc);
             },
-            IntrinsicType.cast_bool => () =>
-            {
-                dataStack.ExpectArity(1, ArityType.any, op.loc);
-                dataStack.Pop();
-                dataStack.Push(TokenType._bool, op.loc);
-            },
-            IntrinsicType.cast_ptr => () =>
-            {
-                dataStack.ExpectArity(1, ArityType.any, op.loc);
-                dataStack.Pop();
-                dataStack.Push(TokenType._ptr, op.loc);
-            },
-            IntrinsicType.cast_int=> () =>
-            {
-                dataStack.ExpectArity(1, ArityType.any, op.loc);
-                dataStack.Pop();
-                dataStack.Push(TokenType._int, op.loc);
-            },
             IntrinsicType.load32 => () =>
             {
                 dataStack.ExpectArity(1, TokenType._ptr, op.loc);
@@ -222,6 +217,12 @@ static class TypeChecker
                 dataStack.Pop();
                 dataStack.Pop();
                 dataStack.Push(TokenType._ptr, op.loc);
+            },
+            {} cast when cast >= IntrinsicType.cast => () =>
+            {
+                dataStack.ExpectArity(1, ArityType.any, op.loc);
+                dataStack.Pop();
+                dataStack.Push(TokenType._int + (int)(cast - IntrinsicType.cast), op.loc);
             },
             _ => (Action) (() => Error(op.loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`"))
         })(),

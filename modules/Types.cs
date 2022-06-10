@@ -41,26 +41,15 @@ class Types
     
     public enum TokenType
     {
-        _int,
-        _bool,
-        _str,
-        _ptr,
-        _word,
         _keyword,
-        _any
+        _word,
+        _any,
+        _str,
+        _int, // from this index onwards, all numbers corresponds to a dataType
+        _bool,
+        _ptr,
+        _struct, // from this index onwards, all numbers corresponds to an index in the struct list
     }
-
-    public static string TypeNames(TokenType type) => type switch
-    {
-        TokenType._int  => "Integer",
-        TokenType._bool => "Boolean",
-        TokenType._str  => "String",
-        TokenType._ptr  => "Pointer",
-        TokenType._word => "Word",
-        TokenType._any  => "Any",
-        TokenType._keyword => "Keyword",
-        _ => Error($"DataType name not implemented: {type}")
-    };
     
     public enum OpType
     {
@@ -72,6 +61,7 @@ class Types
         push_global_mem,
         push_local,
         push_global,
+        offset_load,
         intrinsic,
         dup,
         drop,
@@ -97,12 +87,10 @@ class Types
         minus,
         times,
         div,
-        cast_bool,
-        cast_ptr,
-        cast_int,
-        store32,
         load32,
-        fd_write
+        store32,
+        fd_write,
+        cast
     }
 
     [Flags]

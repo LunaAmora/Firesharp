@@ -93,9 +93,10 @@ static class Generator
     static string GenerateOp(Op op) => op.type switch
     {
         OpType.push_global_mem => $"  i32.const {finalDataSize + totalMemSize + op.operand}",
-        OpType.push_local_mem  => $"  i32.const {(CurrentProc.bindCount + 1) * 4 + op.operand} call $push_local",
-        OpType.push_global  => $"  i32.const {finalDataSize + op.operand * 4}",
+        OpType.push_local_mem => $"  i32.const {(CurrentProc.bindCount + 1) * 4 + op.operand} call $push_local",
+        OpType.push_global => $"  i32.const {finalDataSize + op.operand * 4}",
         OpType.push_local  => $"  i32.const {(CurrentProc.bindCount + 1 + op.operand) * 4 + CurrentProc.procMemSize} call $push_local",
+        OpType.offset_load => $"  i32.const {op.operand} i32.add i32.load",
         OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
         OpType.push_int  or
         OpType.push_ptr  or
@@ -123,9 +124,7 @@ static class Generator
             IntrinsicType.load32    => "  i32.load",
             IntrinsicType.store32   => "  call $swap\n  i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",
-            IntrinsicType.cast_ptr  or
-            IntrinsicType.cast_int  or
-            IntrinsicType.cast_bool => string.Empty,
+            {} cast when cast >= IntrinsicType.cast => string.Empty,
             _ => Error(op.loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`")
         },
         _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
