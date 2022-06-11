@@ -297,7 +297,13 @@ static class TypeChecker
         {
             var stk = stack.ElementAt(i);
             var contr = contract.ElementAt(i);
-            if (contr is not TokenType._any && !contr.Equals(stk.type))
+            var structOffset = contr - TokenType._struct;
+            var anyPass = contr is not TokenType._any &&
+                    structOffset >= 0 &&
+                    structList.Count > structOffset && 
+                    structList[structOffset].members.First().type is not TokenType._any;
+
+            if (anyPass && !contr.Equals(stk.type))
             {
                 Error(loc, $"Expected type `{TypeNames(contr)}`, but found `{TypeNames(stk.type)}`",
                     $"{stk.loc} [INFO] The type found was declared here");

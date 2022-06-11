@@ -44,6 +44,7 @@ class Parser
         structList.Add(new("int",  new List<StructMember>(){new("@", TokenType._int)}));
         structList.Add(new("bool", new List<StructMember>(){new("@", TokenType._bool)}));
         structList.Add(new("ptr",  new List<StructMember>(){new("@", TokenType._ptr)}));
+        structList.Add(new("any",  new List<StructMember>(){new("@", TokenType._any)}));
         
         using (var reader = new StreamReader(file))
         {
