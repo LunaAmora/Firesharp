@@ -96,6 +96,8 @@ class Parser
             "-" => IntrinsicType.minus,
             "*" => IntrinsicType.times,
             "%" => IntrinsicType.div,
+            ">" => IntrinsicType.more,
+            "<" => IntrinsicType.less,
             "@32" => IntrinsicType.load32,
             "!32" => IntrinsicType.store32,
             "fd_write" => IntrinsicType.fd_write,
@@ -176,6 +178,13 @@ class Parser
         KeywordType.over  => (OpType.over, loc),
         KeywordType.rot   => (OpType.rot,  loc),
         KeywordType.equal => (OpType.equal,loc),
+        KeywordType._while => PushBlock((OpType._while, loc)),
+        KeywordType._do    => PopBlock(loc, type) switch
+        {
+            {type: OpType._while} => PushBlock((OpType._do, loc)),
+            {} op => (Op?)Error(loc, $"`do` can only come after an `while` block, but found a `{op.type}` block instead`",
+                $"{op.loc} [INFO] The found block started here")
+        },
         KeywordType.let   => PushBlock(ParseBindings((OpType.bind_stack, loc))),
         KeywordType._if   => PushBlock((OpType.if_start, loc)),
         KeywordType._else => PopBlock(loc, type) switch
@@ -188,6 +197,7 @@ class Parser
         {
             {type: OpType.if_start} => (OpType.end_if, loc),
             {type: OpType._else}    => (OpType.end_else, loc),
+            {type: OpType._do}      => (OpType.end_while, loc),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
             {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")

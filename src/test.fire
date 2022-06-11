@@ -42,12 +42,11 @@ start ::
   
   *hello @str print
   *hello puts
-  
-  *hello trim-left
-  *hello trim-left
-  *hello trim-left
-  *hello trim-left
-  *hello trim-left
-  *hello trim-left
+
+  6 while dup 0 > do
+    *hello trim-left
+    1 -
+  end drop
+
   hello print
 end

@@ -114,6 +114,9 @@ static class Generator
         OpType._else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
+        OpType._while    => $"  loop $while{op.operand}{BlockContract(op)}",
+        OpType._do       => $"  if{BlockContract(op)}",
+        OpType.end_while => $"  br $while{op.operand} end end",
         OpType.end_proc  => $"{EndProc(op)})",
         OpType.bind_stack => BindValues(op.operand),
         OpType.push_bind  => $"  i32.const {(op.operand + 1) * 4} call $push_local i32.load",
@@ -122,6 +125,8 @@ static class Generator
         {
             IntrinsicType.plus      => "  i32.add",
             IntrinsicType.minus     => "  i32.sub",
+            IntrinsicType.more      => "  i32.gt_s",
+            IntrinsicType.less      => "  i32.lt_s",
             IntrinsicType.load32    => "  i32.load",
             IntrinsicType.store32   => "  call $swap\n  i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",

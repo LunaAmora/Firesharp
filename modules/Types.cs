@@ -85,6 +85,9 @@ class Types
         bind_stack,
         push_bind,
         pop_bind,
+        _while,
+        _do,
+        end_while,
     }
 
     public enum IntrinsicType
@@ -96,6 +99,8 @@ class Types
         load32,
         store32,
         fd_write,
+        less,
+        more,
         cast // from this index onwards, corresponds to a dataType starting at `_int`
     }
 
@@ -121,6 +126,8 @@ class Types
         mem     = 1 << 15,
         _struct = 1 << 16,
         let     = 1 << 17,
+        _while  = 1 << 18,
+        _do     = 1 << 19,
         wordTypes = proc | mem | _struct,
         dataTypes = _int | _ptr | _bool,
         assignTypes = equal | colon,

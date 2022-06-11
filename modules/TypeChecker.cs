@@ -13,10 +13,10 @@ static class TypeChecker
 
     public static void TypeCheck(List<Op> program)
     {
-        foreach (Op op in program) TypeCheckOp(op)();
+        foreach (Op op in program) TypeCheckOp(op, program)();
     }
 
-    static Action TypeCheckOp(Op op) => op.type switch
+    static Action TypeCheckOp(Op op, List<Op> program) => op.type switch
     {
         OpType.push_int  => () => dataStack.Push(TokenType._int, op.loc),
         OpType.push_bool => () => dataStack.Push(TokenType._bool, op.loc),
@@ -125,6 +125,46 @@ static class TypeChecker
             ExitCurrentProc();
             dataStack = new();
         },
+        OpType._while => () =>
+        {
+            blockStack.Push((dataStack, op));
+            dataStack = new(dataStack);
+        },
+        OpType._do => () =>
+        {
+            dataStack.ExpectArity(1, TokenType._bool, op.loc);
+            dataStack.Pop();
+            
+            var (expected, startOp) = blockStack.Peek();
+
+            ExpectStackArity(expected, dataStack, op.loc, 
+            $"While block is not allowed to alter the types of the arguments on the data stack");
+            
+            blockStack.Push((dataStack, op));
+            dataStack = new(expected);
+        },
+        OpType.end_while => () =>
+        {
+            var (expected, doOp) = blockStack.Pop();
+
+            ExpectStackArity(expected, dataStack, op.loc, 
+            $"Do block is not allowed to alter the types of the arguments on the data stack");
+            
+            var ins = Math.Min(dataStack.minCount, expected.minCount);
+            var outs = Math.Max(dataStack.stackCount, expected.stackCount) - ins;
+
+            var (oldStack, startOp) = blockStack.Pop();
+
+            var ipDif = program.IndexOf(op) - program.IndexOf(startOp);
+            startOp.operand = ipDif;
+            op.operand = ipDif;
+
+            blockContacts.Add(doOp, (-ins, outs));
+            blockContacts.Add(startOp, (-ins, outs));
+
+            dataStack.minCount   = oldStack.stackCount + ins;
+            dataStack.stackCount = oldStack.stackCount;
+        },
         OpType.if_start => () =>
         {
             dataStack.ExpectArity(1, TokenType._bool, op.loc);
@@ -197,17 +237,20 @@ static class TypeChecker
         },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
-            IntrinsicType.plus => () =>
-            {
-                dataStack.ExpectArity(2, ArityType.same, op.loc);
-                dataStack.Pop();
-                dataStack.Push(dataStack.Pop().type, op.loc);
-            },
+            IntrinsicType.plus  or
             IntrinsicType.minus => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
                 dataStack.Push(dataStack.Pop().type, op.loc);
+            },
+            IntrinsicType.more or
+            IntrinsicType.less => () =>
+            {
+                dataStack.ExpectArity(2, ArityType.same, op.loc);
+                dataStack.Pop();
+                dataStack.Pop();
+                dataStack.Push(TokenType._bool, op.loc);
             },
             IntrinsicType.load32 => () =>
             {

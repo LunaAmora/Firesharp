@@ -153,6 +153,8 @@ class Tokenizer
             "ptr"  => KeywordType._ptr,
             "bool" => KeywordType._bool,
             "let"  => KeywordType.let,
+            "do"   => KeywordType._do,
+            "while"  => KeywordType._while,
             "struct" => KeywordType._struct,
             _ => (KeywordType)(-1)
         });
