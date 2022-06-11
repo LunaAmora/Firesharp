@@ -124,7 +124,7 @@ class Parser
     static bool TryParseDataType(string word, out int result)
     {
         if (!(TryGetTypeName(word) is {} type)) result = -1;
-        else result = TokenType._struct + structList.IndexOf(type) - TokenType._int;
+        else result = TokenType._data_ptr + structList.IndexOf(type) - TokenType._int;
         return result >= 0;
     }
 
@@ -137,8 +137,8 @@ class Parser
         TokenType._bool => "Boolean",
         TokenType._ptr  => "Pointer",
         TokenType._any  => "Any",
-        {} typ when typ >= TokenType._struct 
-            => $"{structList[typ-TokenType._struct].name} Pointer",
+        {} typ when typ >= TokenType._data_ptr 
+            => $"{structList[typ-TokenType._data_ptr].name} Pointer",
         _ => Error($"DataType name not implemented: {type}")
     };
 
@@ -310,7 +310,7 @@ class Parser
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
             else if(pointer)
             {
-                var pointerType = proc.localVars[index].type - TokenType._int + TokenType._struct;
+                var pointerType = proc.localVars[index].type - TokenType._int + TokenType._data_ptr;
                 program.Add((OpType.intrinsic, DataTypeToCast(pointerType), loc));
             }
             else
@@ -330,7 +330,7 @@ class Parser
                 index = proc.localVars.FindIndex(val => $"{word}.{member}".Equals(val.name));
                 var i = structList.IndexOf(structType);
                 program.Add((OpType.push_local, index, loc));
-                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._struct + i), loc));
+                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._data_ptr + i), loc));
             }
             else
             {
@@ -378,7 +378,7 @@ class Parser
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
             else if(pointer)
             {
-                var pointerType = varList[index].type - TokenType._int + TokenType._struct;
+                var pointerType = varList[index].type - TokenType._int + TokenType._data_ptr;
                 program.Add((OpType.intrinsic, DataTypeToCast(pointerType), loc));
             }
             else
@@ -398,7 +398,7 @@ class Parser
                 index = varList.FindIndex(val => $"{word}.{member}".Equals(val.name));
                 var i = structList.IndexOf(structType);
                 program.Add((OpType.push_global, index, loc));
-                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._struct + i), loc));
+                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._data_ptr + i), loc));
             }
             else
             {

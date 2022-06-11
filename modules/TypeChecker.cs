@@ -36,21 +36,21 @@ static class TypeChecker
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
             var A = dataStack.Pop();
-            Assert(A.type >= TokenType._struct, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
             var word = wordList[op.operand].Split(".*")[1];
-            var stk = structList[A.type - TokenType._struct];
+            var stk = structList[A.type - TokenType._data_ptr];
             var index = stk.members.FindIndex(mem => mem.name.Equals(word));
             Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
             op.operand = index * 4;
-            dataStack.Push((int)TokenType._struct + stk.members[index].type - (int)TokenType._int, op.loc);
+            dataStack.Push((int)TokenType._data_ptr + stk.members[index].type - (int)TokenType._int, op.loc);
         },
         OpType.offset_load => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
             var A = dataStack.Pop();
-            Assert(A.type >= TokenType._struct, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
             var word = wordList[op.operand].Split('.')[1];
-            var stk = structList[A.type - TokenType._struct];
+            var stk = structList[A.type - TokenType._data_ptr];
             var index = stk.members.FindIndex(mem => mem.name.Equals(word));
             Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
             op.operand = index * 4;
@@ -297,7 +297,7 @@ static class TypeChecker
         {
             var stk = stack.ElementAt(i);
             var contr = contract.ElementAt(i);
-            var structOffset = contr - TokenType._struct;
+            var structOffset = contr - TokenType._data_ptr;
             var anyPass = contr is not TokenType._any &&
                     structOffset >= 0 &&
                     structList.Count > structOffset && 

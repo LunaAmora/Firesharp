@@ -48,12 +48,12 @@ class Types
         _bool,
         _ptr,
         _any,
-        _struct, // from this index onwards, corresponds to an pointer DataType
+        _data_ptr, // from this index onwards, corresponds to an index in the struct list
         // *int
         // *bool
         // *ptr
-        // *any
-        // *structName from this index onwards, corresponds to an index in the struct list
+        // *any      -- Auto added _data_ptr types by the compiler
+        // *structName...          _data_ptr types added by the program
     }
     
     public enum OpType
