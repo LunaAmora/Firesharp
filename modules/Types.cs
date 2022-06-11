@@ -43,15 +43,16 @@ class Types
     {
         _keyword,
         _word,
-        _any,
         _str,
         _int, // from this index onwards, corresponds to a dataType
         _bool,
         _ptr,
+        _any,
         _struct, // from this index onwards, corresponds to an pointer DataType
         // *int
         // *bool
         // *ptr
+        // *any
         // *structName from this index onwards, corresponds to an index in the struct list
     }
     

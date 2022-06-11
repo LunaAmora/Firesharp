@@ -93,7 +93,7 @@ static class Generator
     static string GenerateOp(Op op) => op.type switch
     {
         OpType.push_global_mem => $"  i32.const {finalDataSize + totalMemSize + op.operand}",
-        OpType.push_local_mem => $"  i32.const {(CurrentProc.bindCount + 1) * 4 + op.operand} call $push_local",
+        OpType.push_local_mem => $"  i32.const {CurrentProc.bindCount * 4 + op.operand} call $push_local",
         OpType.push_global => $"  i32.const {finalDataSize + op.operand * 4}",
         OpType.push_local  => $"  i32.const {(CurrentProc.bindCount + 1 + op.operand) * 4 + CurrentProc.procMemSize} call $push_local",
         OpType.offset_load => $"  i32.const {op.operand} i32.add i32.load",
@@ -108,13 +108,13 @@ static class Generator
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
         OpType.call      => $"  call ${procList[op.operand].name}",
-        OpType.prep_proc => "\n(func $".AppendProc(op),
+        OpType.prep_proc => $"\n(func ${PrepProc(op.operand)}",
         OpType.equal     => "  i32.eq",
-        OpType.if_start  => "  if".AppendContract(op),
+        OpType.if_start  => $"  if{BlockContract(op)}",
         OpType._else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
-        OpType.end_proc  => ")".PrependProc(op),
+        OpType.end_proc  => $"{EndProc(op)})",
         OpType.bind_stack => BindValues(op.operand),
         OpType.push_bind  => $"  i32.const {(op.operand + 1) * 4} call $push_local i32.load",
         OpType.pop_bind   => PopBind(op.operand),
@@ -150,31 +150,31 @@ static class Generator
         return $"  i32.const {bindNumber * 4} call $free_local";
     }
 
-    static string PrependProc(this string str, Op op)
+    static string EndProc(Op op)
     {
         Assert(InsideProc, "Unreachable, parser error.");
         var proc = CurrentProc;
+        ExitCurrentProc();
         if(proc.procMemSize + proc.localVars.Count > 0)
         {
-            str = $"  i32.const {proc.procMemSize + (proc.localVars.Count * 4)} call $free_local\n{str}";
+            return $"  i32.const {proc.procMemSize + (proc.localVars.Count * 4)} call $free_local\n";
         }
-        ExitCurrentProc();
-        return str;
+        return string.Empty;
     }
 
-    static string AppendProc(this string str, Op op)
+    static string PrepProc(int index)
     {
         Assert(!InsideProc, "Unreachable, parser error.");
-        var proc = procList[op.operand];
+        var proc = procList[index];
         CurrentProc = proc;
         var count = proc.localVars.Count;
         
-        StringBuilder sb = new StringBuilder(str);
+        StringBuilder sb = new StringBuilder();
         if(proc is var (name, (ins, outs)))
         {
             (int ins, int outs) contr = (ins.Count, outs.Count);
             sb.Append(name);
-            sb.AppendContract(contr);
+            sb.Append(BlockContract(contr));
 
             if(proc.procMemSize + count > 0)
             {
@@ -194,21 +194,21 @@ static class Generator
             if(contr.ins > 0) sb.Append("\n ");
             for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         }
-        
         return sb.ToString();
     }
 
-    static string AppendContract(this string str, Op op)
+    static string BlockContract(Op op)
     {
         if(blockContacts.ContainsKey(op) && blockContacts[op] is {} contract)
         {
-            return new StringBuilder(str).AppendContract(contract).ToString();
+            return BlockContract(contract);
         }
-        return str;
+        return string.Empty;
     }
 
-    static StringBuilder AppendContract(this StringBuilder sb, (int ins, int outs) contract)
+    static string BlockContract((int ins, int outs) contract)
     {
+        var sb = new StringBuilder();
         if (contract.ins > 0)
         {
             sb.Append(" (param");
@@ -221,6 +221,6 @@ static class Generator
             sb.Insert(sb.Length, " i32", contract.outs);
             sb.Append(")");
         }
-        return sb;
+        return sb.ToString();
     }
 }

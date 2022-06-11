@@ -132,11 +132,11 @@ class Parser
     {
         TokenType._keyword => "Keyword",
         TokenType._word => "Word",
-        TokenType._any  => "Any",
         TokenType._str  => "String",
         TokenType._int  => "Integer",
         TokenType._bool => "Boolean",
         TokenType._ptr  => "Pointer",
+        TokenType._any  => "Any",
         {} typ when typ >= TokenType._struct 
             => $"{structList[typ-TokenType._struct].name} Pointer",
         _ => Error($"DataType name not implemented: {type}")
@@ -276,7 +276,7 @@ class Parser
         if(InsideProc && CurrentProc is {} proc)
         {
             var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
-            if (index != - 1)
+            if (index >= 0)
             {
                 return (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
             }
@@ -1011,8 +1011,8 @@ class Parser
             if (InsideProc)
             {
                 var proc = CurrentProc;
-                proc.localMemNames.Add((word, proc.procMemSize));
                 proc.procMemSize += size;
+                proc.localMemNames.Add((word, proc.procMemSize));
             }
             else
             {

@@ -39,14 +39,15 @@ end
 
 start ::
   hello str := "Hello World!\n" end
+  
+  *hello @str print
+  *hello puts
+  
   *hello trim-left
   *hello trim-left
   *hello trim-left
   *hello trim-left
   *hello trim-left
-
-  *hello dup .len swap .data print
-  *hello @str                print
-  hello                      print
-  *hello                     puts
+  *hello trim-left
+  hello print
 end
