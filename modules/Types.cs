@@ -20,7 +20,7 @@ class Types
     {
         public static implicit operator Loc((string file, int line, int col) value)
             => new Loc(value.file, value.line, value.col);
-        public override string ToString() => $"{file}:{line}:{col}:";
+        public override string ToString() => string.IsNullOrEmpty(file) ? string.Empty : $"{file}:{line}:{col}: ";
     }
 
     public record struct IRToken(TokenType type, int operand, Loc loc)

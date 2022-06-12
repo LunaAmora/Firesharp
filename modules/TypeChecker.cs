@@ -29,7 +29,7 @@ static class TypeChecker
         OpType.push_global => () => dataStack.Push(TokenType._ptr, op.loc),
         OpType.push_local => () =>
         {
-            Assert(InsideProc, "Unreachable, parser error.");
+            Assert(InsideProc, error: "Unreachable, parser error.");
             dataStack.Push(TokenType._ptr, op.loc);
         },
         OpType.unpack => () =>
@@ -120,13 +120,13 @@ static class TypeChecker
         },
         OpType.prep_proc => () =>
         {
-            Assert(!InsideProc, "Unreachable, parser error.");
+            Assert(!InsideProc, error: "Unreachable, parser error.");
             CurrentProc = procList[op.operand];
             CurrentProc.contract.ins.ForEach(type => dataStack.Push(type, op.loc));
         },
         OpType.end_proc => () =>
         {
-            Assert(InsideProc, "Unreachable, parser error.");
+            Assert(InsideProc, error: "Unreachable, parser error.");
             var outsCopy = new List<TokenType>(CurrentProc.contract.outs);
             outsCopy.Reverse();
             TokenType[] endStack = outsCopy.ToArray();
@@ -230,7 +230,7 @@ static class TypeChecker
         },
         OpType.push_bind => () =>
         {
-            Assert(bindStack.Count > op.operand, "Unreachable, parser error");
+            Assert(bindStack.Count > op.operand, error: "Unreachable, parser error");
             dataStack.Push(bindStack.ElementAt(op.operand).type, op.loc);
         },
         OpType.pop_bind => () =>
@@ -292,9 +292,9 @@ static class TypeChecker
                 dataStack.Push(TokenType._int + (int)(cast - IntrinsicType.cast), op.loc);
                 // Info($"Casting {A.type} to {TypeNames(TokenType._int + (int)(cast - IntrinsicType.cast))}");
             },
-            _ => (Action) (() => Error(op.loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`"))
+            _ => (Action) (() => ErrorHere($"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`", op.loc))
         })(),
-        _ => () => Error(op.loc, $"Op type not implemented in `TypeCheckOp` yet: `{op.type}`")
+        _ => () => ErrorHere($"Op type not implemented in `TypeCheckOp` yet: `{op.type}`", op.loc)
     };
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)

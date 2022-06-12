@@ -12,7 +12,7 @@ static class Generator
     {
         if (Path.GetDirectoryName(Filepath) is not string dir)
         {
-            Error("Could not resolve file directory");
+            Error(error: "Could not resolve file directory");
             return;
         }
 
@@ -82,7 +82,7 @@ static class Generator
             (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
         WritePrefix("[CMD] ", cmd.ToString());
         var result = await cmd.ExecuteAsync();
-        Assert(result.ExitCode == 0, "External command error, please report this in the project's github!");
+        Assert(result.ExitCode == 0, error: "External command error, please report this in the project's github!");
     }
     
     static void TryWriteLine(this StreamWriter writer, string text, string comment)
@@ -132,9 +132,9 @@ static class Generator
             IntrinsicType.store32   => "  call $swap\n  i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",
             {} cast when cast >= IntrinsicType.cast => string.Empty,
-            _ => Error(op.loc, $"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`")
+            _ => ErrorHere($"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`", op.loc)
         },
-        _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
+        _ => ErrorHere($"Op type not implemented in `GenerateOp` yet: {op.type}", op.loc)
     };
 
     static string UnpackStruct(int operand)
@@ -186,7 +186,7 @@ static class Generator
 
     static string EndProc(Op op)
     {
-        Assert(InsideProc, "Unreachable, parser error.");
+        Assert(InsideProc, error: "Unreachable, parser error.");
         var proc = CurrentProc;
         ExitCurrentProc();
         if(proc.procMemSize + proc.localVars.Count > 0)
@@ -198,7 +198,7 @@ static class Generator
 
     static string PrepProc(int index)
     {
-        Assert(!InsideProc, "Unreachable, parser error.");
+        Assert(!InsideProc, error: "Unreachable, parser error.");
         var proc = procList[index];
         CurrentProc = proc;
         var count = proc.localVars.Count;

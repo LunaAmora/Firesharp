@@ -82,7 +82,7 @@ class Parser
     
     static IRToken NextIRTokens(int quantity)
     {
-        Assert(IRTokens.Count > quantity, "Unreachable, parser error");
+        Assert(IRTokens.Count > quantity, error: "Unreachable, parser error");
         IRToken result = IRTokens.Dequeue();
         for (int i = 1; i < quantity; i++) result = IRTokens.Dequeue();
         return result;
@@ -141,7 +141,7 @@ class Parser
         TokenType._any  => "Any",
         {} typ when typ >= TokenType._data_ptr 
             => $"{structList[typ-TokenType._data_ptr].name} Pointer",
-        _ => Error($"DataType name not implemented: {type}")
+        _ => ErrorHere($"DataType name not implemented: {type}")
     };
 
     static Op? DefineOp(IRToken tok) => tok.type switch
@@ -167,7 +167,7 @@ class Parser
             var word when TryDefineContext(word, tok.loc, out Op? result) => result,
             var word => (Op?)Error(tok.loc, $"Word was not declared on the program: `{word}`")
         },
-        _ => (Op?)Error(tok.loc, $"Token type not implemented in `DefineOp` yet: {tok.type}")
+        _ => (Op?)ErrorHere($"Token type not implemented in `DefineOp` yet: {TypeNames(tok.type)}", tok.loc)
     };
 
     static Op? DefineOp(KeywordType type, Loc loc) => type switch
@@ -203,7 +203,7 @@ class Parser
             {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
         },
-        _ => (Op?)Error(loc, $"Keyword type not implemented in `DefineOp` yet: {type}")
+        _ => (Op?)ErrorHere($"Keyword type not implemented in `DefineOp` yet: {type}", loc)
     };
 
     static Op? TryGetBinding(string word, Loc loc)
@@ -859,8 +859,9 @@ class Parser
         {
             if (CompileEval(out (TypeFrame frame, int value) eval, out int skip))
             {
-                Assert((tokType | TokenType._any).HasFlag(eval.frame.type), $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
-                NextIRTokens(skip);
+                var endToken = NextIRTokens(skip);
+                Assert((tokType | TokenType._any).HasFlag(eval.frame.type), endToken.loc,
+                    $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
                 TypedWord newVar = new(word, eval.value, tokType);
                 if(keyword is KeywordType.colon)
                 {
@@ -965,7 +966,7 @@ class Parser
 
     static Op ParseBindings(Op op)
     {
-        Assert(InsideProc, "Bindings cannot be used outside of a procedure");
+        Assert(InsideProc, op.loc, "Bindings cannot be used outside of a procedure");
         var words = new List<string>();
         var proc = CurrentProc;
         while(NextIRToken() is {} tok)

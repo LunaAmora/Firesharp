@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using CliFx.Infrastructure;
 using CliFx.Attributes;
@@ -17,7 +18,7 @@ public class CompileCommand : ICommand
         FConsole = console;
         if(File is {})
         {
-            Assert(File.Extension.Equals(".fire"), "The input file name provided is not valid");
+            Assert(File.Extension.Equals(".fire"), error: "The input file name provided is not valid");
             Filepath = File.ToString();
             try
             {
@@ -30,7 +31,7 @@ public class CompileCommand : ICommand
             }
             catch(System.IO.FileNotFoundException)
             {
-                Error($"File not found `{Filepath}`");
+                Error(error: $"File not found `{Filepath}`");
             }
         }
     }
@@ -80,36 +81,41 @@ static partial class Firesharp
         FConsole.ResetColor();
     }
     
-    public static void Warn(string format, params object?[] arg)
-        => WritePrefix("[WARN] ", ConsoleColor.Yellow, format, arg);
+    public static void Warn(Loc loc = default, string text = "", params object?[] arg)
+        => WritePrefix($"{loc}[WARN] ", ConsoleColor.Yellow, text, arg);
     
-    public static void Warn(Loc loc, string format, params object?[] arg)
-        => WritePrefix($"{loc} [WARN] ", ConsoleColor.Yellow, format, arg);
+    public static void Info(Loc loc = default, string text = "", params object?[] arg)
+        => WritePrefix($"{loc}[INFO] ", text, arg);
 
-    public static void Info(string format, params object?[] arg)
-        => WritePrefix("[INFO] ", format, arg);
-    
-    public static void Info(Loc loc, string format, params object?[] arg)
-        => WritePrefix($"{loc} [INFO] ", format, arg);
-
-    public static string Error(params string[] errorText) 
-        => Error(1, $"[ERROR] {string.Join("\n", errorText)}");
-    
-    public static string Error(Loc loc, params string[] errorText) 
-        => Error(1, $"{loc} [ERROR] {string.Join($"\n", errorText)}");
-
-    public static string Error(int exitCode, string errorText)
-        => throw new CommandException(errorText, exitCode);
-
-    public static bool Assert(bool cond, params string[] errorText)
+    public static void Here(string message,
+        [CallerFilePath] string path = "",
+        [CallerLineNumber] int lineNumber = 0)
     {
-        if(!cond) Error(errorText);
-        return cond;
+        var loc = new Loc(Path.GetRelativePath(Directory.GetCurrentDirectory(), path), lineNumber, 0);
+        WritePrefix($"./{loc}[Compiler] ", ConsoleColor.Yellow, message);
     }
 
-    public static bool Assert(bool cond, Loc loc, params string[] errorText)
+    public static string ErrorHere(
+        string hereText = "",
+        Loc loc = default,
+        [CallerFilePath] string path = "",  
+        [CallerLineNumber] int lineNumber = 0,
+        params string[] error)
     {
-        if(!cond) Error(loc, errorText);
+        Here(hereText, path, lineNumber);
+        if(error.Count() > 0) return Error(loc, error);
+        else return Error(loc, "Error found here");
+    }
+
+    public static string Error(Loc loc = default, params string[] error) 
+        => Error(1, $"{loc}[ERROR] {string.Join($"\n", error)}");
+
+    public static string Error(int exitCode, string error)
+        => throw new CommandException(error, exitCode);
+
+    public static bool Assert(bool cond, Loc loc = default, params string[] error)
+    {
+        if(!cond) Error(loc, error);
         return cond;
     }
 }
