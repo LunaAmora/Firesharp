@@ -41,10 +41,10 @@ class Parser
 
     public static List<Op> ParseFile(FileStream file, string filepath)
     {
-        structList.Add(new("int",  new List<StructMember>(){new("@", TokenType._int)}));
-        structList.Add(new("bool", new List<StructMember>(){new("@", TokenType._bool)}));
-        structList.Add(new("ptr",  new List<StructMember>(){new("@", TokenType._ptr)}));
-        structList.Add(new("any",  new List<StructMember>(){new("@", TokenType._any)}));
+        structList.Add(new("int",  new List<StructMember>(){new(string.Empty, TokenType._int)}));
+        structList.Add(new("bool", new List<StructMember>(){new(string.Empty, TokenType._bool)}));
+        structList.Add(new("ptr",  new List<StructMember>(){new(string.Empty, TokenType._ptr)}));
+        structList.Add(new("any",  new List<StructMember>(){new(string.Empty, TokenType._any)}));
         
         using (var reader = new StreamReader(file))
         {
@@ -178,6 +178,7 @@ class Parser
         KeywordType.over  => (OpType.over, loc),
         KeywordType.rot   => (OpType.rot,  loc),
         KeywordType.equal => (OpType.equal,loc),
+        KeywordType.at    => (OpType.unpack, loc),
         KeywordType._while => PushBlock((OpType._while, loc)),
         KeywordType._do    => PopBlock(loc, type) switch
         {

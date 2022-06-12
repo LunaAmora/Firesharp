@@ -107,6 +107,7 @@ static class Generator
         OpType.dup       => "  call $dup",
         OpType.rot       => "  call $rot",
         OpType.drop      => "  drop",
+        OpType.unpack    => UnpackStruct(op.operand),
         OpType.call      => $"  call ${procList[op.operand].name}",
         OpType.prep_proc => $"\n(func ${PrepProc(op.operand)}",
         OpType.equal     => "  i32.eq",
@@ -135,6 +136,34 @@ static class Generator
         },
         _ => Error(op.loc, $"Op type not implemented in `GenerateOp` yet: {op.type}")
     };
+
+    static string UnpackStruct(int operand)
+    {
+        var stk = structList[operand];
+        var count = stk.members.Count;
+        var sb = new StringBuilder();
+        if(count > 2)
+        {
+            sb.Append("  call $bind_local\n");
+            var offset = 0;
+            stk.members.ForEach(member =>
+            {
+                sb.Append($"    i32.const 4 call $push_local i32.load\n");
+                sb.Append($"    i32.const {4 * offset++} i32.add i32.load\n");
+            });
+            sb.Append("  i32.const 4 call $free_local");
+        }
+        else if(count == 2)
+        {
+            sb.Append("  call $dup i32.load call $swap\n");
+            sb.Append("  i32.const 4 i32.add i32.load");
+        }
+        else
+        {
+            sb.Append("  i32.load");
+        }
+        return sb.ToString();
+    }
 
     static string BindValues(int bindNumber)
     {

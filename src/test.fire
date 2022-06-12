@@ -2,8 +2,8 @@ true  :: 1 #bool end
 false :: 0 #bool end
 null  :: 0 #ptr end
 
-inc32 : *any : dup .@ #int 1 + swap !32 end
-dec32 : *any : dup .@ #int 1 - swap !32 end
+inc32 : *any : dup @ #int 1 + swap !32 end
+dec32 : *any : dup @ #int 1 - swap !32 end
 
 str :
   len  int
@@ -15,14 +15,10 @@ ciovec :
   buf_len int
 end
 
-@str : *str -> str :
-  dup .len swap .data
-end
-
 puts : *str :
   iov ciovec:= end
   written: 4 end
-  @str swap !iov
+  @ swap !iov
   1 *iov #ptr 1 written fd_write drop
 end
 
@@ -40,8 +36,8 @@ end
 start ::
   hello str := "Hello World!\n" end
   
-  *hello @str print
-  *hello puts
+  *hello @ print
+  *hello   puts
 
   6 while dup 0 > do
     *hello trim-left

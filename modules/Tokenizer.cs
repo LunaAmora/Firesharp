@@ -154,6 +154,7 @@ class Tokenizer
             "bool" => KeywordType._bool,
             "let"  => KeywordType.let,
             "do"   => KeywordType._do,
+            "@"    => KeywordType.at,
             "while"  => KeywordType._while,
             "struct" => KeywordType._struct,
             _ => (KeywordType)(-1)

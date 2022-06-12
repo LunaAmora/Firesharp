@@ -32,11 +32,23 @@ static class TypeChecker
             Assert(InsideProc, "Unreachable, parser error.");
             dataStack.Push(TokenType._ptr, op.loc);
         },
+        OpType.unpack => () =>
+        {
+            dataStack.ExpectArity(1, ArityType.any, op.loc);
+            var A = dataStack.Pop();
+            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot unpack element of type: `{TypeNames(A.type)}`");
+            var stk = structList[A.type - TokenType._data_ptr];
+            op.operand = structList.IndexOf(stk);
+            stk.members.ForEach(member => 
+            {
+                dataStack.Push((int)TokenType._data_ptr + member.type - (int)TokenType._int, op.loc);
+            });
+        },
         OpType.offset => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
             var A = dataStack.Pop();
-            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot `.` access element of type: `{TypeNames(A.type)}`");
             var word = wordList[op.operand].Split(".*")[1];
             var stk = structList[A.type - TokenType._data_ptr];
             var index = stk.members.FindIndex(mem => mem.name.Equals(word));
@@ -282,7 +294,7 @@ static class TypeChecker
             },
             _ => (Action) (() => Error(op.loc, $"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`"))
         })(),
-        _ => () => Error(op.loc, $"Op type not implemented in `TypeCheckOp` yet: {op.type}")
+        _ => () => Error(op.loc, $"Op type not implemented in `TypeCheckOp` yet: `{op.type}`")
     };
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)

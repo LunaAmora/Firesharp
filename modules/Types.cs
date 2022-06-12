@@ -88,6 +88,7 @@ class Types
         _while,
         _do,
         end_while,
+        unpack,
     }
 
     public enum IntrinsicType
@@ -128,6 +129,7 @@ class Types
         let     = 1 << 17,
         _while  = 1 << 18,
         _do     = 1 << 19,
+        at      = 1 << 20,
         wordTypes = proc | mem | _struct,
         dataTypes = _int | _ptr | _bool,
         assignTypes = equal | colon,
