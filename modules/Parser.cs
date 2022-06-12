@@ -815,12 +815,36 @@ class Parser
             }
 
             var name = ExpectToken(loc, TokenType._word, "struct member name");
-            var type = ExpectKeyword(loc, KeywordType.dataTypes, "struct member type");
-
-            if(name is {operand: int index} && type is {operand: int keyType}
-                && KeywordToDataType((KeywordType)keyType) is {} tokType)
+            if(NextIRToken() is {} nameType && name is {operand: int index})
             {
-                members.Add(new(wordList[index], tokType));
+                var sb = "Expected struct member type but found";
+                var foundWord = wordList[index];
+                if(nameType is {type: TokenType._keyword})
+                {
+                    var key = (KeywordType)nameType.operand;
+                    if(KeywordType.dataTypes.HasFlag(key))
+                    {
+                        members.Add(new(foundWord, KeywordToDataType(key)));
+                    }
+                    else Error(loc, $"{sb} the Keyword: `{key}`");
+                }
+                else if(nameType is {type: TokenType._word, operand: int typeIndex})
+                {
+                    var foundType = wordList[typeIndex];
+                    if (TryGetTypeName(foundType) is {} structType)
+                    {
+                        foreach (var member in structType.members)
+                        {
+                            members.Add(new($"{foundWord}.{member.name}", member.type));
+                        }
+                    }
+                    else if (TryGetDataPointer(foundType, out int dataId))
+                    {
+                        members.Add(new($"{foundWord}", TokenType._int + dataId));
+                    }
+                    else Error(nameType.loc, $"{sb} the Word: `{foundType}`");
+                }
+                else Error(nameType.loc, $"{sb}: `{TypeNames(nameType.type)}`");
             }
         }
         Error(loc, "Expected struct members or `end` after struct declaration");
