@@ -1,6 +1,5 @@
 namespace Firesharp;
 
-using static Tokenizer;
 using static Parser;
 
 static class TypeChecker

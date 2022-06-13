@@ -11,28 +11,19 @@ namespace Firesharp;
 public class CompileCommand : ICommand
 {
     [CommandParameter(0, Description = "Compile a `.fire` file to WebAssembly.")]
-    public FileInfo? File { get; init; }
+    public FileInfo? file { get; init; }
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
         FConsole = console;
-        if(File is {})
+        if(file is {})
         {
-            Assert(File.Extension.Equals(".fire"), error: "The input file name provided is not valid");
-            Filepath = File.ToString();
-            try
-            {
-                using (var file = File.Open(FileMode.Open))
-                {
-                    var program = Parser.ParseFile(file, Filepath);
-                    TypeChecker.TypeCheck(program);
-                    await Generator.GenerateWasm(program);
-                }
-            }
-            catch(System.IO.FileNotFoundException)
-            {
-                Error(error: $"File not found `{Filepath}`");
-            }
+            Assert(file.Extension.Equals(".fire"), error: "The input file name provided is not valid");
+            Assert(file.Exists, error: "Failed to find the provided file");
+            TryReadFile(file);
+            Parser.ParseTokens();
+            TypeChecker.TypeCheck(Parser.program);
+            await Generator.GenerateWasm(Parser.program, file.ToString());
         }
     }
 }
@@ -40,7 +31,34 @@ public class CompileCommand : ICommand
 static partial class Firesharp
 {
     static IConsole? _console;
-    static string? _filepath;
+
+    public static void TryReadRelative(Loc loc, string target)
+    {
+        Assert(target.EndsWith(".fire"), loc, $"The target include file is not valid: {target}");
+        var current = loc.file;
+        if(Path.GetDirectoryName(current) is {} dir &&
+           new FileInfo(Path.Combine(dir, target)) is {} tPath &&
+           tPath.Exists)
+        {
+            TryReadFile(tPath);
+        }
+        else Error(loc, $"Failed to find the target include file: {target}");
+    }
+
+    public static void TryReadFile(FileInfo fileInfo)
+    {
+        try
+        {
+            using (var file = fileInfo.Open(FileMode.Open))
+            {
+                Parser.TokenizeFile(file, fileInfo.ToString());
+            }
+        }
+        catch (System.IO.FileNotFoundException)
+        {
+            Error(error: $"Failed to open the file: {fileInfo.ToString()}");
+        }
+    }
 
     public static IConsole FConsole
     {
@@ -50,16 +68,6 @@ static partial class Firesharp
             return _console;
         }
         set => _console = value;
-    }
-
-    public static string Filepath
-    {
-        get
-        {
-            Debug.Assert(_filepath is {});
-            return _filepath;
-        }
-        set => _filepath = value;
     }
 
     public static void Write(string format, params object?[] arg)
@@ -103,8 +111,13 @@ static partial class Firesharp
         params string[] error)
     {
         Here(hereText, path, lineNumber);
-        if(error.Count() > 0) return Error(loc, error);
-        else return Error(loc, "Error found here");
+        var result = string.Empty;
+        if(error.Count() > 0) 
+            return Error(loc, error);
+        else if(!string.IsNullOrEmpty(loc.file))
+            return Error(loc, "Error found here");
+        else Environment.Exit(1);
+        return string.Empty;
     }
 
     public static string Error(Loc loc = default, params string[] error) 

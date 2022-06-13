@@ -3,14 +3,13 @@
 namespace Firesharp;
 
 using static TypeChecker;
-using static Tokenizer;
 using static Parser;
 
 static class Generator
 {
-    public static async Task GenerateWasm(List<Op> program)
+    public static async Task GenerateWasm(List<Op> program, string filepath)
     {
-        if (Path.GetDirectoryName(Filepath) is not string dir)
+        if (Path.GetDirectoryName(filepath) is not string dir)
         {
             Error(error: "Could not resolve file directory");
             return;
@@ -47,7 +46,10 @@ static class Generator
             if (dataList.Count > 0 || varList.Count > 0)
             {
                 output.WriteLine("(data (i32.const 0)");
-                dataList.ForEach(data => output.WriteLine("  \"{0}\"", data.name));
+                dataList.ForEach(data => 
+                {
+                    if(data.offset >= 0) output.WriteLine("  \"{0}\"", data.name);
+                });
 
                 var padding = 4 - (totalDataSize % 4);
                 if(padding < 4) output.WriteLine("  \"{0}\"", new String('0', padding).Replace("0", "\\00"));

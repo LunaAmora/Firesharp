@@ -1,43 +1,8 @@
-true  :: 1 #bool end
-false :: 0 #bool end
-null  :: 0 #ptr end
-
-inc32 : *any : dup @ #int 1 + swap !32 end
-dec32 : *any : dup @ #int 1 - swap !32 end
-
-str :
-  len  int
-  data ptr
-end
-
-ciovec :
-  buf     ptr
-  buf_len int
-end
-
-puts : *str :
-  iov ciovec:= end
-  written: 4 end
-  @ swap !iov
-  1 *iov #ptr 1 written fd_write drop
-end
-
-print : str :
-  string str:= end
-  !string *string puts
-end
-
-trim-left : *str :
-  dup 
-  .*len  dec32
-  .*data inc32
-end
+include "../lib/std.fire"
 
 start ::
   hello str := "Hello World!\n" end
-  
-  *hello @ print
-  *hello   puts
+  *hello puts
 
   6 while dup 0 > do
     *hello trim-left

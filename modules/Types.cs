@@ -39,6 +39,39 @@ class Types
             => new Op(value.type, value.operand, value.loc);
     }
     
+    public record struct StructType(string name, List<StructMember> members)
+    {
+        public static implicit operator StructType((string name, List<StructMember> members) value)
+            => new StructType(value.name, value.members);
+        public static implicit operator StructType((string name, TokenType type) value)
+            => new StructType(value.name, new(){value.type});
+    }
+    
+    public record struct StructMember(string name, TokenType type, int defaultValue = 0)
+    {
+        public static implicit operator StructMember((string name, TokenType type, int defaultValue) value)
+            => new StructMember(value.name, value.type, value.defaultValue);
+        public static implicit operator StructMember((string name, TokenType type) value)
+            => new StructMember(value.name, value.type);
+        public static implicit operator StructMember(TokenType type)
+            => new StructMember(string.Empty, type);
+    }
+
+    public record struct OffsetWord(string name, int offset)
+    {
+        public static implicit operator OffsetWord((string name, int offset) value)
+            => new(value.name, value.offset);
+    }
+    
+    public record struct TypedWord(OffsetWord word, TokenType type)
+    {
+        public TypedWord(string name, int offset, TokenType type) : this ((name, offset), type){}
+        public static implicit operator TypedWord((string name, int offset, TokenType type) value)
+            => new(value.name, value.offset, value.type);
+        public string name => word.name;
+        public int value => word.offset;
+    }
+    
     public enum TokenType
     {
         _keyword,
@@ -130,23 +163,9 @@ class Types
         _while  = 1 << 18,
         _do     = 1 << 19,
         at      = 1 << 20,
+        include = 1 << 21,
         wordTypes = proc | mem | _struct,
         dataTypes = _int | _ptr | _bool,
         assignTypes = equal | colon,
-    }
-
-    public record struct OffsetWord(string name, int offset)
-    {
-        public static implicit operator OffsetWord((string name, int offset) value)
-            => new(value.name, value.offset);
-    }
-    
-    public record struct TypedWord(OffsetWord word, TokenType type)
-    {
-        public TypedWord(string name, int offset, TokenType type) : this ((name, offset), type){}
-        public static implicit operator TypedWord((string name, int offset, TokenType type) value)
-            => new(value.name, value.offset, value.type);
-        public string name => word.name;
-        public int value => word.offset;
     }
 }

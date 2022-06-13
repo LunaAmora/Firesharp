@@ -7,24 +7,35 @@ using static Tokenizer;
 
 class Parser
 {
-    public static List<Proc> procList = new();
+    public static List<StructType> structList = new()
+    {
+        ("int",  TokenType._int),
+        ("bool", TokenType._bool),
+        ("ptr",  TokenType._ptr),
+        ("any",  TokenType._any)
+    };
+
+    public static List<SizedWord> dataList = new();
     public static List<TypedWord> varList = new();
-    public static int totalVarsSize => varList.Count * 4;
-    public static List<StructType> structList = new();
-
-    static List<Op> program = new();
-    static Stack<Op> opBlock = new();
-
-    static List<OffsetWord> structVarsList = new();
-    static List<TypedWord> constList = new();
-    
-    static List<OffsetWord> memList = new();
+    public static List<string> wordList = new();
+    public static List<Proc> procList = new();
+    public static List<Op> program = new();
+    public static int totalDataSize = 0;
     public static int totalMemSize = 0;
 
-    public static Stack<string> bindStack = new();
-    
+    static List<OffsetWord> structVarsList = new();
+    static List<TypedWord>  constList = new();
+    static List<OffsetWord> memList = new();
+    static LinkedList<IRToken> IRTokens = new();
+    static Stack<Op> opBlock = new();
     static Proc? _currentProc;
+
+    public static int finalDataSize => ((totalDataSize + 3)/4)*4;
+    
+    public static int totalVarsSize => varList.Count * 4;
     public static bool InsideProc => _currentProc != null;
+    public static void ExitCurrentProc() => _currentProc = null;
+
     public static Proc CurrentProc
     {
         get
@@ -35,32 +46,28 @@ class Parser
         set => _currentProc = value;
     }
 
-    public static void ExitCurrentProc() => _currentProc = null;
-
-    static Queue<IRToken> IRTokens = new();
-
-    public static List<Op> ParseFile(FileStream file, string filepath)
+    public static void TokenizeFile(FileStream file, string filepath)
     {
-        structList.Add(new("int",  new List<StructMember>(){new(string.Empty, TokenType._int)}));
-        structList.Add(new("bool", new List<StructMember>(){new(string.Empty, TokenType._bool)}));
-        structList.Add(new("ptr",  new List<StructMember>(){new(string.Empty, TokenType._ptr)}));
-        structList.Add(new("any",  new List<StructMember>(){new(string.Empty, TokenType._any)}));
-        
+        var top = IRTokens.Count > 0 ? IRTokens.First : null;
         using (var reader = new StreamReader(file))
         {
             Lexer lexer = new(reader, filepath);
 
             while(lexer.ParseNextToken() is {} token)
             {
-                IRTokens.Enqueue(token);
-            }
-            
-            while(NextIRToken() is {} token)
+                if(top is null) IRTokens.AddLast(token);
+                else IRTokens.AddBefore(top, token);
+            }            
+        }
+    }
+
+    public static List<Op> ParseTokens()
+    {
+        while(NextIRToken() is {} token)
+        {
+            if(DefineOp(token) is {} op)
             {
-                if(DefineOp(token) is {} op)
-                {
-                    program.Add(op);
-                }
+                program.Add(op);
             }
         }
         return program;
@@ -76,15 +83,21 @@ class Parser
 
     static IRToken? NextIRToken()
     {
-        if (IRTokens.Count > 0) return IRTokens.Dequeue();
-        return null;
+        if(IRTokens.Count > 0)
+        {
+            var result = IRTokens.First?.Value;
+            IRTokens.RemoveFirst();
+            return result;
+        }
+        else return null;
     }
     
     static IRToken NextIRTokens(int quantity)
     {
         Assert(IRTokens.Count > quantity, error: "Unreachable, parser error");
-        IRToken result = IRTokens.Dequeue();
-        for (int i = 1; i < quantity; i++) result = IRTokens.Dequeue();
+        for (int i = 0; i < quantity-1; i++) IRTokens.RemoveFirst();
+        var result = IRTokens.First();
+        IRTokens.RemoveFirst();
         return result;
     }
     
@@ -148,7 +161,7 @@ class Parser
     {
         {} typ when ExpectProc(typ, tok.loc, $"Token type cannot be used outside of a procedure: `{TypeNames(typ)}`") => null,
         TokenType._keyword => DefineOp((KeywordType)tok.operand, tok.loc),
-        TokenType._str     => (OpType.push_str, tok.operand, tok.loc),
+        TokenType._str     => (OpType.push_str, RegisterString(tok.operand), tok.loc),
         TokenType._int     => (OpType.push_int, tok.operand, tok.loc),
         TokenType._bool    => (OpType.push_bool, tok.operand, tok.loc),
         TokenType._ptr     => (OpType.push_ptr, tok.operand, tok.loc),
@@ -203,8 +216,27 @@ class Parser
             {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
         },
+        KeywordType.include => IncludeFile(loc),
         _ => (Op?)ErrorHere($"Keyword type not implemented in `DefineOp` yet: {type}", loc)
     };
+
+    static int RegisterString(int operand)
+    {
+        var data = dataList[operand];
+        data.offset = totalDataSize;
+        totalDataSize += data.size;
+        return operand;
+    }
+    
+    private static Op? IncludeFile(Loc loc)
+    {
+        if(ExpectToken(loc, TokenType._str, "include file name") is {} path)
+        {
+            var word = dataList[path.operand];
+            TryReadRelative(loc, word.name);
+        }
+        return null;
+    }
 
     static Op? TryGetBinding(string word, Loc loc)
     {
@@ -554,7 +586,7 @@ class Parser
                 {
                     Assert(varEval.frame.type is not TokenType._any, varEval.frame.loc, "Undefined variable value is not allowed");
                     NextIRTokens(skip);
-                    TypedWord newVar = new(word, varEval.value, varEval.frame.type);
+                    TypedWord newVar = (word, varEval.value, varEval.frame.type);
                     if (InsideProc) CurrentProc.localVars.Add(newVar);
                     else varList.Add(newVar);
                     return true;
@@ -660,6 +692,7 @@ class Parser
         },
         TokenType._str => () =>
         {
+            RegisterString(tok.operand);
             var data = dataList.ElementAt(tok.operand);
             evalStack.Push(((TokenType._int, tok.loc), data.size));
             evalStack.Push(((TokenType._ptr, tok.loc), data.offset));
@@ -810,7 +843,7 @@ class Parser
             if(token.type is TokenType._keyword)
             {
                 ExpectKeyword(loc, KeywordType.end, "`end` after struct declaration");
-                structList.Add(new(word, members));
+                structList.Add((word, members));
                 return true;
             }
 
@@ -824,7 +857,7 @@ class Parser
                     var key = (KeywordType)nameType.operand;
                     if(KeywordType.dataTypes.HasFlag(key))
                     {
-                        members.Add(new(foundWord, KeywordToDataType(key)));
+                        members.Add((foundWord, KeywordToDataType(key)));
                     }
                     else Error(loc, $"{sb} the Keyword: `{key}`");
                 }
@@ -835,12 +868,12 @@ class Parser
                     {
                         foreach (var member in structType.members)
                         {
-                            members.Add(new($"{foundWord}.{member.name}", member.type));
+                            members.Add(($"{foundWord}.{member.name}", member.type));
                         }
                     }
                     else if (TryGetDataPointer(foundType, out int dataId))
                     {
-                        members.Add(new($"{foundWord}", TokenType._int + dataId));
+                        members.Add(($"{foundWord}", TokenType._int + dataId));
                     }
                     else Error(nameType.loc, $"{sb} the Word: `{foundType}`");
                 }
@@ -862,7 +895,7 @@ class Parser
                 var endToken = NextIRTokens(skip);
                 Assert((tokType | TokenType._any).HasFlag(eval.frame.type), endToken.loc,
                     $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
-                TypedWord newVar = new(word, eval.value, tokType);
+                TypedWord newVar = (word, eval.value, tokType);
                 if(keyword is KeywordType.colon)
                 {
                     constList.Add(newVar);
@@ -1070,35 +1103,5 @@ class Parser
     {
         Assert(opBlock.Count > 0, loc, $"There are no open blocks to close with `{closingType}`");
         return opBlock.Pop();
-    }
-
-    public struct StructType
-    {
-        public string name;
-        public List<StructMember> members;
-
-        public StructType(string Name, List<StructMember> Members)
-        {
-            name = Name;
-            members = Members;
-        }
-    }
-
-    public struct StructMember
-    {
-        public string name;
-        public TokenType type;
-        public int defaultValue = 0;
-
-        public StructMember(string Name, TokenType Keyword)
-        {
-            name = Name;
-            type = Keyword;
-        }
-
-        public StructMember(String Name, TokenType Keyword, int DefaultValue) : this(Name, Keyword)
-        {
-            defaultValue = DefaultValue;
-        }
     }
 }

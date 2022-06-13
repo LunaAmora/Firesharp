@@ -1,21 +1,15 @@
 namespace Firesharp;
 
+using static Parser;
+
 class Tokenizer
 {
-    public record struct SizedWord(OffsetWord word, int size)
+    public record SizedWord(OffsetWord word)
     {
-        public SizedWord(string name, int offset, int size) : this ((name, offset), size){}
-        public static implicit operator SizedWord((string name, int offset, int size) value)
-            => new(value.name, value.offset, value.size);
+        public int offset = -1;
         public string name => word.name;
-        public int offset => word.offset;
+        public int size => word.offset;
     }
-
-    public static List<SizedWord> dataList = new();
-    public static List<string> wordList = new();
-    public static int totalDataSize = 0;
-
-    public static int finalDataSize => ((totalDataSize + 3)/4)*4;
     
     record struct Token(string name, Loc loc){}
     
@@ -103,8 +97,7 @@ class Tokenizer
                 name = name.Trim('\"');
                 var scapes = name.Count(pred => pred == '\\'); //TODO: This does not take escaped '\' into account
                 var length = name.Length - scapes;
-                dataList.Add((name, totalDataSize, length));
-                totalDataSize += length;
+                dataList.Add(new((name, length)));
                 return true;
             }
             return false;
@@ -157,6 +150,7 @@ class Tokenizer
             "@"    => KeywordType.at,
             "while"  => KeywordType._while,
             "struct" => KeywordType._struct,
+            "include" => KeywordType.include,
             _ => (KeywordType)(-1)
         });
         return result >= 0;
