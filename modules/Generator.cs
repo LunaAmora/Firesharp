@@ -2,7 +2,6 @@
 
 namespace Firesharp;
 
-using static TypeChecker;
 using static Parser;
 
 static class Generator
@@ -114,11 +113,11 @@ static class Generator
         OpType.prep_proc => $"\n(func ${PrepProc(op.operand)}",
         OpType.equal     => "  i32.eq",
         OpType.if_start  => $"  if{BlockContract(op)}",
-        OpType._else     => "  else",
+        OpType.@else     => "  else",
         OpType.end_if    or 
         OpType.end_else  => "  end",
-        OpType._while    => $"  loop $while{op.operand}{BlockContract(op)}",
-        OpType._do       => $"  if{BlockContract(op)}",
+        OpType.@while    => $"  loop $while{op.operand}{BlockContract(op)}",
+        OpType.@do       => $"  if{BlockContract(op)}",
         OpType.end_while => $"  br $while{op.operand} end end",
         OpType.end_proc  => $"{EndProc(op)})",
         OpType.bind_stack => BindValues(op.operand),

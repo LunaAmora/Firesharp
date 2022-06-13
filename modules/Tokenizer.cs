@@ -3,14 +3,7 @@ namespace Firesharp;
 using static Parser;
 
 class Tokenizer
-{
-    public record SizedWord(OffsetWord word)
-    {
-        public int offset = -1;
-        public string name => word.name;
-        public int size => word.offset;
-    }
-    
+{   
     record struct Token(string name, Loc loc){}
     
     public ref struct Lexer
@@ -108,12 +101,12 @@ class Tokenizer
             false
                 => (null),
             _ when TryParseString(tok, out int index)
-                => new(TokenType._str, index, tok.loc),
+                => new(TokenType.str, index, tok.loc),
             _ when TryParseNumber(tok.name, out int value)
-                => new(TokenType._int, value, tok.loc),
+                => new(TokenType.@int, value, tok.loc),
             _ when TryParseKeyword(tok.name, out int keyword)
-                => new(TokenType._keyword, keyword, tok.loc),
-            _ => new(TokenType._word, DefineWord(tok.name), tok.loc)
+                => new(TokenType.keyword, keyword, tok.loc),
+            _ => new(TokenType.word, DefineWord(tok.name), tok.loc)
         };
     }
 
@@ -134,22 +127,22 @@ class Tokenizer
             "drop" => KeywordType.drop,
             "over" => KeywordType.over,
             "rot"  => KeywordType.rot,
-            "if"   => KeywordType._if,
-            "else" => KeywordType._else,
+            "if"   => KeywordType.@if,
+            "else" => KeywordType.@else,
             "end"  => KeywordType.end,
             "proc" => KeywordType.proc,
             "->"   => KeywordType.arrow,
             "mem"  => KeywordType.mem,
             ":"    => KeywordType.colon,
             "="    => KeywordType.equal,
-            "int"  => KeywordType._int,
-            "ptr"  => KeywordType._ptr,
-            "bool" => KeywordType._bool,
+            "int"  => KeywordType.@int,
+            "ptr"  => KeywordType.ptr,
+            "bool" => KeywordType.@bool,
             "let"  => KeywordType.let,
-            "do"   => KeywordType._do,
+            "do"   => KeywordType.@do,
             "@"    => KeywordType.at,
-            "while"  => KeywordType._while,
-            "struct" => KeywordType._struct,
+            "while"  => KeywordType.@while,
+            "struct" => KeywordType.@struct,
             "include" => KeywordType.include,
             _ => (KeywordType)(-1)
         });

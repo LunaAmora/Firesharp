@@ -2,19 +2,17 @@ using System.Diagnostics;
 
 namespace Firesharp;
 
-using static TypeChecker;
-using static Tokenizer;
-
 class Parser
 {
     public static List<StructType> structList = new()
     {
-        ("int",  TokenType._int),
-        ("bool", TokenType._bool),
-        ("ptr",  TokenType._ptr),
-        ("any",  TokenType._any)
+        ("int",  TokenType.@int),
+        ("bool", TokenType.@bool),
+        ("ptr",  TokenType.ptr),
+        ("any",  TokenType.any)
     };
 
+    public static Dictionary<Op, (int, int)> blockContacts = new();
     public static List<SizedWord> dataList = new();
     public static List<TypedWord> varList = new();
     public static List<string> wordList = new();
@@ -31,9 +29,8 @@ class Parser
     static Proc? _currentProc;
 
     public static int finalDataSize => ((totalDataSize + 3)/4)*4;
-    
     public static int totalVarsSize => varList.Count * 4;
-    public static bool InsideProc => _currentProc != null;
+    public static bool InsideProc   => _currentProc != null;
     public static void ExitCurrentProc() => _currentProc = null;
 
     public static Proc CurrentProc
@@ -51,7 +48,7 @@ class Parser
         var top = IRTokens.Count > 0 ? IRTokens.First : null;
         using (var reader = new StreamReader(file))
         {
-            Lexer lexer = new(reader, filepath);
+            Tokenizer.Lexer lexer = new(reader, filepath);
 
             while(lexer.ParseNextToken() is {} token)
             {
@@ -139,33 +136,33 @@ class Parser
     static bool TryParseDataType(string word, out int result)
     {
         if (!(TryGetTypeName(word) is {} type)) result = -1;
-        else result = TokenType._data_ptr + structList.IndexOf(type) - TokenType._int;
+        else result = TokenType.data_ptr + structList.IndexOf(type) - TokenType.@int;
         return result >= 0;
     }
 
     public static string TypeNames(TokenType type) => type switch
     {
-        TokenType._keyword => "Keyword",
-        TokenType._word => "Word",
-        TokenType._str  => "String",
-        TokenType._int  => "Integer",
-        TokenType._bool => "Boolean",
-        TokenType._ptr  => "Pointer",
-        TokenType._any  => "Any",
-        {} typ when typ >= TokenType._data_ptr 
-            => $"{structList[typ-TokenType._data_ptr].name} Pointer",
+        TokenType.keyword => "Keyword",
+        TokenType.word  => "Word",
+        TokenType.str   => "String",
+        TokenType.@int  => "Integer",
+        TokenType.@bool => "Boolean",
+        TokenType.ptr   => "Pointer",
+        TokenType.any   => "Any",
+        {} typ when typ >= TokenType.data_ptr 
+            => $"{structList[typ-TokenType.data_ptr].name} Pointer",
         _ => ErrorHere($"DataType name not implemented: {type}")
     };
 
     static Op? DefineOp(IRToken tok) => tok.type switch
     {
         {} typ when ExpectProc(typ, tok.loc, $"Token type cannot be used outside of a procedure: `{TypeNames(typ)}`") => null,
-        TokenType._keyword => DefineOp((KeywordType)tok.operand, tok.loc),
-        TokenType._str     => (OpType.push_str, RegisterString(tok.operand), tok.loc),
-        TokenType._int     => (OpType.push_int, tok.operand, tok.loc),
-        TokenType._bool    => (OpType.push_bool, tok.operand, tok.loc),
-        TokenType._ptr     => (OpType.push_ptr, tok.operand, tok.loc),
-        TokenType._word    => wordList[tok.operand] switch
+        TokenType.keyword => DefineOp((KeywordType)tok.operand, tok.loc),
+        TokenType.str     => (OpType.push_str, RegisterString(tok.operand), tok.loc),
+        TokenType.@int    => (OpType.push_int, tok.operand, tok.loc),
+        TokenType.@bool   => (OpType.push_bool, tok.operand, tok.loc),
+        TokenType.ptr     => (OpType.push_ptr, tok.operand, tok.loc),
+        TokenType.word    => wordList[tok.operand] switch
         {
             var word when TryGetConstStruct(word, tok.loc) => null,
             var word when TryGetOffset(word, tok.operand, tok.loc) is {} result => result,
@@ -192,26 +189,26 @@ class Parser
         KeywordType.rot   => (OpType.rot,  loc),
         KeywordType.equal => (OpType.equal,loc),
         KeywordType.at    => (OpType.unpack, loc),
-        KeywordType._while => PushBlock((OpType._while, loc)),
-        KeywordType._do    => PopBlock(loc, type) switch
+        KeywordType.@while => PushBlock((OpType.@while, loc)),
+        KeywordType.@do    => PopBlock(loc, type) switch
         {
-            {type: OpType._while} => PushBlock((OpType._do, loc)),
+            {type: OpType.@while} => PushBlock((OpType.@do, loc)),
             {} op => (Op?)Error(loc, $"`do` can only come after an `while` block, but found a `{op.type}` block instead`",
                 $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.let   => PushBlock(ParseBindings((OpType.bind_stack, loc))),
-        KeywordType._if   => PushBlock((OpType.if_start, loc)),
-        KeywordType._else => PopBlock(loc, type) switch
+        KeywordType.@if   => PushBlock((OpType.if_start, loc)),
+        KeywordType.@else => PopBlock(loc, type) switch
         {
-            {type: OpType.if_start} => PushBlock((OpType._else, loc)),
+            {type: OpType.if_start} => PushBlock((OpType.@else, loc)),
             {} op => (Op?)Error(loc, $"`else` can only come after an `if` block, but found a `{op.type}` block instead`",
                 $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.end => PopBlock(loc, type) switch
         {
             {type: OpType.if_start} => (OpType.end_if, loc),
-            {type: OpType._else}    => (OpType.end_else, loc),
-            {type: OpType._do}      => (OpType.end_while, loc),
+            {type: OpType.@else}    => (OpType.end_else, loc),
+            {type: OpType.@do}      => (OpType.end_while, loc),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
             {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
@@ -230,7 +227,7 @@ class Parser
     
     private static Op? IncludeFile(Loc loc)
     {
-        if(ExpectToken(loc, TokenType._str, "include file name") is {} path)
+        if(ExpectToken(loc, TokenType.str, "include file name") is {} path)
         {
             var word = dataList[path.operand];
             TryReadRelative(loc, word.name);
@@ -252,7 +249,7 @@ class Parser
 
     static bool ExpectProc(TokenType type, Loc loc, string errorText)
     {
-        return !Assert(type is TokenType._keyword or TokenType._word || InsideProc, loc, errorText);
+        return !Assert(type is TokenType.keyword or TokenType.word || InsideProc, loc, errorText);
     }
 
     static Op PopBind(Op op)
@@ -353,7 +350,7 @@ class Parser
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
             else if(pointer)
             {
-                var pointerType = proc.localVars[index].type - TokenType._int + TokenType._data_ptr;
+                var pointerType = proc.localVars[index].type - TokenType.@int + TokenType.data_ptr;
                 program.Add((OpType.intrinsic, DataTypeToCast(pointerType), loc));
             }
             else
@@ -373,7 +370,7 @@ class Parser
                 index = proc.localVars.FindIndex(val => $"{word}.{member}".Equals(val.name));
                 var i = structList.IndexOf(structType);
                 program.Add((OpType.push_local, index, loc));
-                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._data_ptr + i), loc));
+                program.Add((OpType.intrinsic, DataTypeToCast(TokenType.data_ptr + i), loc));
             }
             else
             {
@@ -421,7 +418,7 @@ class Parser
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
             else if(pointer)
             {
-                var pointerType = varList[index].type - TokenType._int + TokenType._data_ptr;
+                var pointerType = varList[index].type - TokenType.@int + TokenType.data_ptr;
                 program.Add((OpType.intrinsic, DataTypeToCast(pointerType), loc));
             }
             else
@@ -441,7 +438,7 @@ class Parser
                 index = varList.FindIndex(val => $"{word}.{member}".Equals(val.name));
                 var i = structList.IndexOf(structType);
                 program.Add((OpType.push_global, index, loc));
-                program.Add((OpType.intrinsic, DataTypeToCast(TokenType._data_ptr + i), loc));
+                program.Add((OpType.intrinsic, DataTypeToCast(TokenType.data_ptr + i), loc));
             }
             else
             {
@@ -511,11 +508,11 @@ class Parser
         for (int i = 0; i < IRTokens.Count; i++)
         {
             var token = IRTokenAt(i);
-            if (token.type is not TokenType._keyword)
+            if (token.type is not TokenType.keyword)
             {
                 if(colonCount == 0)
                 {
-                    if(token.type is TokenType._word
+                    if(token.type is TokenType.word
                         && TryGetTypeName(wordList[token.operand]) is {} structType)
                     {
                         NextIRToken();
@@ -524,18 +521,18 @@ class Parser
                     }
                     return false;
                 }
-                else if(colonCount == 1 && token.type is TokenType._int)
+                else if(colonCount == 1 && token.type is TokenType.@int)
                 {
                     var lastToken = IRTokenAt(i-1);
-                    if(lastToken.type is TokenType._keyword 
+                    if(lastToken.type is TokenType.keyword 
                         && (KeywordType)lastToken.operand is KeywordType.equal)
                     {
-                        context = KeywordType._int;
+                        context = KeywordType.@int;
                     }
                     else context = KeywordType.mem;
                     break;
                 }
-                else if(colonCount == 1 && token.type is TokenType._word)
+                else if(colonCount == 1 && token.type is TokenType.word)
                 {
                     if (TryGetTypeName(wordList[token.operand]) is {} structType ||
                         TryGetDataPointer(wordList[token.operand], out int _))
@@ -547,20 +544,20 @@ class Parser
                     {
                         var n1 = IRTokenAt(i+1);
                         var n2 = IRTokenAt(i+2);
-                        if(n1 is {type: TokenType._keyword})
+                        if(n1 is {type: TokenType.keyword})
                         {
-                            if(KeywordToDataType((KeywordType)n1.operand) is not TokenType._keyword && (
-                                (n2 is {type: TokenType._keyword} && (KeywordType)n2.operand is KeywordType.end) ||
-                                (n2 is {type: TokenType._word})))
+                            if(KeywordToDataType((KeywordType)n1.operand) is not TokenType.keyword && (
+                                (n2 is {type: TokenType.keyword} && (KeywordType)n2.operand is KeywordType.end) ||
+                                (n2 is {type: TokenType.word})))
                             {
-                                context = KeywordType._struct;
+                                context = KeywordType.@struct;
                                 break;
                             }
                         }
                     }
                 }
                 
-                var invalidToken = token.type is TokenType._word ? 
+                var invalidToken = token.type is TokenType.word ? 
                     wordList[token.operand] : token.type.ToString();
                 Error(token.loc, $"Invalid Token found on context declaration: `{invalidToken}`");
                 return false;
@@ -584,7 +581,7 @@ class Parser
                 NextIRTokens(2);
                 if(CompileEval(out (TypeFrame frame, int value) varEval, out int skip))
                 {
-                    Assert(varEval.frame.type is not TokenType._any, varEval.frame.loc, "Undefined variable value is not allowed");
+                    Assert(varEval.frame.type is not TokenType.any, varEval.frame.loc, "Undefined variable value is not allowed");
                     NextIRTokens(skip);
                     TypedWord newVar = (word, varEval.value, varEval.frame.type);
                     if (InsideProc) CurrentProc.localVars.Add(newVar);
@@ -601,7 +598,7 @@ class Parser
                     
                     if(CompileEval(out (TypeFrame frame, int value) eval, out int skip))
                     {
-                        if(eval.frame.type is not TokenType._any)
+                        if(eval.frame.type is not TokenType.any)
                         {
                             NextIRTokens(skip);
                             constList.Add((word, eval.value, eval.frame.type));
@@ -622,7 +619,7 @@ class Parser
         {
             KeywordType.proc => ParseProcedure(word, ref result, (OpType.prep_proc, loc)),
             KeywordType.mem  => ParseMemory(word, loc),
-            KeywordType._struct => ParseStruct(word, loc), 
+            KeywordType.@struct => ParseStruct(word, loc), 
             _ when KeywordToDataType(context) is {} tokType
               => ParseConstOrVar(word, loc, tokType, ref result),
             _ => false
@@ -643,13 +640,13 @@ class Parser
         for (int i = 0; i < IRTokens.Count; i++)
         {
             token = IRTokenAt(i);
-            if(token is {type: TokenType._keyword})
+            if(token is {type: TokenType.keyword})
             {
                 if((KeywordType)token.operand is KeywordType.end)
                 {
                     if(result.Count == 0 && i == 0)
                     {
-                        result.Push(((TokenType._any, token.loc), 0));
+                        result.Push(((TokenType.any, token.loc), 0));
                         skip = 1;
                         return true;
                     }
@@ -675,30 +672,30 @@ class Parser
 
     static Func<bool> EvalToken(IRToken tok, Stack<(TypeFrame frame, int value)> evalStack) => tok.type switch
     {
-        TokenType._int  => () =>
+        TokenType.@int  => () =>
         {
-            evalStack.Push(((TokenType._int, tok.loc), tok.operand));
+            evalStack.Push(((TokenType.@int, tok.loc), tok.operand));
             return true;
         },
-        TokenType._bool => () =>
+        TokenType.@bool => () =>
         {
-            evalStack.Push(((TokenType._bool, tok.loc), tok.operand));
+            evalStack.Push(((TokenType.@bool, tok.loc), tok.operand));
             return true;
         },
-        TokenType._ptr => () =>
+        TokenType.ptr => () =>
         {
-            evalStack.Push(((TokenType._ptr, tok.loc), tok.operand));
+            evalStack.Push(((TokenType.ptr, tok.loc), tok.operand));
             return true;
         },
-        TokenType._str => () =>
+        TokenType.str => () =>
         {
             RegisterString(tok.operand);
             var data = dataList.ElementAt(tok.operand);
-            evalStack.Push(((TokenType._int, tok.loc), data.size));
-            evalStack.Push(((TokenType._ptr, tok.loc), data.offset));
+            evalStack.Push(((TokenType.@int, tok.loc), data.size));
+            evalStack.Push(((TokenType.ptr, tok.loc), data.offset));
             return true;
         },
-        TokenType._word => () => (wordList[tok.operand] switch
+        TokenType.word => () => (wordList[tok.operand] switch
         {
             var word when TryGetIntrinsic(word, tok.loc) is {} op => () => ((IntrinsicType)op.operand switch
             {
@@ -719,7 +716,7 @@ class Parser
                 {} cast when cast >= IntrinsicType.cast => () =>
                 {
                     var A = evalStack.Pop();
-                    evalStack.Push(((TokenType._int + (int)(cast - IntrinsicType.cast), op.loc), A.value));
+                    evalStack.Push(((TokenType.@int + (int)(cast - IntrinsicType.cast), op.loc), A.value));
                     return true;
                 },
                 _ => (Func<bool>)(() => false),
@@ -731,7 +728,7 @@ class Parser
             },
             _ => (Func<bool>)(() => false),
         })(),
-        TokenType._keyword => () => ((KeywordType)tok.operand switch
+        TokenType.keyword => () => ((KeywordType)tok.operand switch
         {
             KeywordType.dup => () =>
             {
@@ -774,7 +771,7 @@ class Parser
             {
                 var A = evalStack.Pop();
                 var B = evalStack.Pop();
-                evalStack.Push(((TokenType._bool, tok.loc), A.value == B.value ? 1 : 0));
+                evalStack.Push(((TokenType.@bool, tok.loc), A.value == B.value ? 1 : 0));
                 return true;
             },
             _ => (Func<bool>)(() => false),
@@ -798,7 +795,7 @@ class Parser
             return;
         }
 
-        if(result.Count == 1 && result.Pop() is {frame: {type: TokenType._any}})
+        if(result.Count == 1 && result.Pop() is {frame: {type: TokenType.any}})
         {
             foreach (var member in members)
             {
@@ -840,19 +837,19 @@ class Parser
         ExpectKeyword(loc, KeywordType.colon, "`:` after keyword `struct`");
         while(PeekIRToken() is {} token)
         {
-            if(token.type is TokenType._keyword)
+            if(token.type is TokenType.keyword)
             {
                 ExpectKeyword(loc, KeywordType.end, "`end` after struct declaration");
                 structList.Add((word, members));
                 return true;
             }
 
-            var name = ExpectToken(loc, TokenType._word, "struct member name");
+            var name = ExpectToken(loc, TokenType.word, "struct member name");
             if(NextIRToken() is {} nameType && name is {operand: int index})
             {
                 var sb = "Expected struct member type but found";
                 var foundWord = wordList[index];
-                if(nameType is {type: TokenType._keyword})
+                if(nameType is {type: TokenType.keyword})
                 {
                     var key = (KeywordType)nameType.operand;
                     if(KeywordType.dataTypes.HasFlag(key))
@@ -861,7 +858,7 @@ class Parser
                     }
                     else Error(loc, $"{sb} the Keyword: `{key}`");
                 }
-                else if(nameType is {type: TokenType._word, operand: int typeIndex})
+                else if(nameType is {type: TokenType.word, operand: int typeIndex})
                 {
                     var foundType = wordList[typeIndex];
                     if (TryGetTypeName(foundType) is {} structType)
@@ -873,7 +870,7 @@ class Parser
                     }
                     else if (TryGetDataPointer(foundType, out int dataId))
                     {
-                        members.Add(($"{foundWord}", TokenType._int + dataId));
+                        members.Add(($"{foundWord}", TokenType.@int + dataId));
                     }
                     else Error(nameType.loc, $"{sb} the Word: `{foundType}`");
                 }
@@ -893,7 +890,7 @@ class Parser
             if (CompileEval(out (TypeFrame frame, int value) eval, out int skip))
             {
                 var endToken = NextIRTokens(skip);
-                Assert((tokType | TokenType._any).HasFlag(eval.frame.type), endToken.loc,
+                Assert((tokType | TokenType.any).HasFlag(eval.frame.type), endToken.loc,
                     $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
                 TypedWord newVar = (word, eval.value, tokType);
                 if(keyword is KeywordType.colon)
@@ -927,9 +924,9 @@ class Parser
         var sb = new StringBuilder("Expected proc contract or `:` after procedure definition, but found");
         while(NextIRToken() is {} tok)
         {
-            if(tok is {type: TokenType._keyword} && (KeywordType)tok.operand is {} typ)
+            if(tok is {type: TokenType.keyword} && (KeywordType)tok.operand is {} typ)
             {
-                if (KeywordToDataType(typ) is {} key && key is not TokenType._keyword)
+                if (KeywordToDataType(typ) is {} key && key is not TokenType.keyword)
                 {
                     if(!foundArrow) ins.Add(key);
                     else outs.Add(key);
@@ -951,7 +948,7 @@ class Parser
                 }
                 continue;
             }
-            else if (tok is {type: TokenType._word})
+            else if (tok is {type: TokenType.word})
             {
                 var foundWord = wordList[tok.operand];
                 if (TryGetTypeName(foundWord) is {} structType)
@@ -964,8 +961,8 @@ class Parser
                 }
                 else if (TryGetDataPointer(foundWord, out int dataId))
                 {
-                    if(!foundArrow) ins.Add(TokenType._int + dataId);
-                    else outs.Add(TokenType._int + dataId);
+                    if(!foundArrow) ins.Add(TokenType.@int + dataId);
+                    else outs.Add(TokenType.@int + dataId);
                 }
                 else
                 {
@@ -985,16 +982,16 @@ class Parser
 
     static TokenType KeywordToDataType(KeywordType? type) => type switch
     {
-        KeywordType._int => TokenType._int,
-        KeywordType._ptr => TokenType._ptr,
-        KeywordType._bool => TokenType._bool,
-        _ => TokenType._keyword
+        KeywordType.@int => TokenType.@int,
+        KeywordType.ptr => TokenType.ptr,
+        KeywordType.@bool => TokenType.@bool,
+        _ => TokenType.keyword
     };
 
     static int DataTypeToCast(TokenType type)
     {
-        if(type < TokenType._int) return -1;
-        return (int)IntrinsicType.cast + (int)(type - TokenType._int);
+        if(type < TokenType.@int) return -1;
+        return (int)IntrinsicType.cast + (int)(type - TokenType.@int);
     }
 
     static Op ParseBindings(Op op)
@@ -1004,7 +1001,7 @@ class Parser
         var proc = CurrentProc;
         while(NextIRToken() is {} tok)
         {
-            if(tok is {type: TokenType._keyword})
+            if(tok is {type: TokenType.keyword})
             {
                 if((KeywordType)tok.operand is KeywordType.colon)
                 {
@@ -1014,7 +1011,7 @@ class Parser
                 }
                 Error(tok.loc, $"Expected `:` to close binding definition, but found: {(KeywordType)tok.operand}");
             }
-            else if(tok is {type: TokenType._word})
+            else if(tok is {type: TokenType.word})
             {
                 words.Add(wordList[tok.operand]);
             }
@@ -1048,7 +1045,7 @@ class Parser
             sb.Append($"Expected {TypeNames(expected)} {notFound}, but found ");
             errorLoc = token.loc;
 
-            if (token.type.Equals(TokenType._word) && TryGetIntrinsic(wordList[token.operand], out IntrinsicType intrinsic))
+            if (token.type.Equals(TokenType.word) && TryGetIntrinsic(wordList[token.operand], out IntrinsicType intrinsic))
             {
                 sb.Append($"the Intrinsic `{intrinsic}`");
             }
@@ -1061,7 +1058,7 @@ class Parser
 
     static IRToken? ExpectKeyword(Loc loc, KeywordType expectedType, string notFound)
     {
-        var token = ExpectToken(loc, TokenType._keyword, notFound);
+        var token = ExpectToken(loc, TokenType.keyword, notFound);
         if (token is {} tok && !(expectedType.HasFlag((KeywordType)tok.operand)))
         {
             Error(tok.loc, $"Expected keyword to be `{expectedType}`, but found `{(KeywordType)tok.operand}`");
@@ -1073,7 +1070,7 @@ class Parser
     static bool ParseMemory(string word, Loc loc)
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`");
-        if (ExpectToken(loc, TokenType._int, "memory size after `:`") is {} valueToken)
+        if (ExpectToken(loc, TokenType.@int, "memory size after `:`") is {} valueToken)
         {
             ExpectKeyword(loc, KeywordType.end, "`end` after memory size");
             var size = ((valueToken.operand + 3)/4)*4;

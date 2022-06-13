@@ -1,5 +1,5 @@
 ﻿global using static Firesharp.Firesharp;
-global using static Firesharp.Types;
+global using Firesharp.Types;
 global using System.Text;
 using CliFx;
 

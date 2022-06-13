@@ -3,12 +3,10 @@ namespace Firesharp;
 using static Parser;
 
 static class TypeChecker
-{
-    public static Dictionary<Op, (int, int)> blockContacts = new();
-    
-    static DataStack dataStack = new();
+{    
     static Stack<(DataStack stack, Op op)> blockStack = new(); //TODO: This method of snapshotting the datastack is really dumb, change later
     static Stack<TypeFrame> bindStack = new();
+    static DataStack dataStack = new();
 
     public static void TypeCheck(List<Op> program)
     {
@@ -17,51 +15,51 @@ static class TypeChecker
 
     static Action TypeCheckOp(Op op, List<Op> program) => op.type switch
     {
-        OpType.push_int  => () => dataStack.Push(TokenType._int, op.loc),
-        OpType.push_bool => () => dataStack.Push(TokenType._bool, op.loc),
-        OpType.push_ptr  => () => dataStack.Push(TokenType._ptr, op.loc),
+        OpType.push_int  => () => dataStack.Push(TokenType.@int, op.loc),
+        OpType.push_bool => () => dataStack.Push(TokenType.@bool, op.loc),
+        OpType.push_ptr  => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.push_str  => () => 
         {
-            dataStack.Push(TokenType._int, op.loc);
-            dataStack.Push(TokenType._ptr, op.loc);
+            dataStack.Push(TokenType.@int, op.loc);
+            dataStack.Push(TokenType.ptr, op.loc);
         },
-        OpType.push_global => () => dataStack.Push(TokenType._ptr, op.loc),
+        OpType.push_global => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.push_local => () =>
         {
             Assert(InsideProc, error: "Unreachable, parser error.");
-            dataStack.Push(TokenType._ptr, op.loc);
+            dataStack.Push(TokenType.ptr, op.loc);
         },
         OpType.unpack => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
             var A = dataStack.Pop();
-            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot unpack element of type: `{TypeNames(A.type)}`");
-            var stk = structList[A.type - TokenType._data_ptr];
+            Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot unpack element of type: `{TypeNames(A.type)}`");
+            var stk = structList[A.type - TokenType.data_ptr];
             op.operand = structList.IndexOf(stk);
             stk.members.ForEach(member => 
             {
-                dataStack.Push((int)TokenType._data_ptr + member.type - (int)TokenType._int, op.loc);
+                dataStack.Push((int)TokenType.data_ptr + member.type - (int)TokenType.@int, op.loc);
             });
         },
         OpType.offset => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
             var A = dataStack.Pop();
-            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot `.` access element of type: `{TypeNames(A.type)}`");
+            Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot `.` access element of type: `{TypeNames(A.type)}`");
             var word = wordList[op.operand].Split(".*")[1];
-            var stk = structList[A.type - TokenType._data_ptr];
+            var stk = structList[A.type - TokenType.data_ptr];
             var index = stk.members.FindIndex(mem => mem.name.Equals(word));
             Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
             op.operand = index * 4;
-            dataStack.Push((int)TokenType._data_ptr + stk.members[index].type - (int)TokenType._int, op.loc);
+            dataStack.Push((int)TokenType.data_ptr + stk.members[index].type - (int)TokenType.@int, op.loc);
         },
         OpType.offset_load => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
             var A = dataStack.Pop();
-            Assert(A.type >= TokenType._data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+            Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
             var word = wordList[op.operand].Split('.')[1];
-            var stk = structList[A.type - TokenType._data_ptr];
+            var stk = structList[A.type - TokenType.data_ptr];
             var index = stk.members.FindIndex(mem => mem.name.Equals(word));
             Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
             op.operand = index * 4;
@@ -104,8 +102,8 @@ static class TypeChecker
             dataStack.Push(A);
             dataStack.Push(B);
         },
-        OpType.push_global_mem => () => dataStack.Push(TokenType._ptr, op.loc),
-        OpType.push_local_mem => () => dataStack.Push(TokenType._ptr, op.loc),
+        OpType.push_global_mem => () => dataStack.Push(TokenType.ptr, op.loc),
+        OpType.push_local_mem => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.call => () => 
         {
             if (procList[op.operand] is var (_, (ins, outs)))
@@ -136,14 +134,14 @@ static class TypeChecker
             ExitCurrentProc();
             dataStack = new();
         },
-        OpType._while => () =>
+        OpType.@while => () =>
         {
             blockStack.Push((dataStack, op));
             dataStack = new(dataStack);
         },
-        OpType._do => () =>
+        OpType.@do => () =>
         {
-            dataStack.ExpectArity(1, TokenType._bool, op.loc);
+            dataStack.ExpectArity(1, TokenType.@bool, op.loc);
             dataStack.Pop();
             
             var (expected, startOp) = blockStack.Peek();
@@ -178,12 +176,12 @@ static class TypeChecker
         },
         OpType.if_start => () =>
         {
-            dataStack.ExpectArity(1, TokenType._bool, op.loc);
+            dataStack.ExpectArity(1, TokenType.@bool, op.loc);
             dataStack.Pop();
             blockStack.Push((dataStack, op));
             dataStack = new(dataStack);
         },
-        OpType._else => () =>
+        OpType.@else => () =>
         {
             var (oldStack, startOp) = blockStack.Peek();
             blockStack.Push((dataStack, startOp));
@@ -244,7 +242,7 @@ static class TypeChecker
             dataStack.ExpectArity(2, ArityType.same, op.loc);
             dataStack.Pop();
             dataStack.Pop();
-            dataStack.Push(TokenType._bool, op.loc);
+            dataStack.Push(TokenType.@bool, op.loc);
         },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
@@ -261,35 +259,35 @@ static class TypeChecker
                 dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push(TokenType._bool, op.loc);
+                dataStack.Push(TokenType.@bool, op.loc);
             },
             IntrinsicType.load32 => () =>
             {
-                dataStack.ExpectArity(1, TokenType._ptr, op.loc);
+                dataStack.ExpectArity(1, TokenType.ptr, op.loc);
                 dataStack.Pop();
-                dataStack.Push(TokenType._int, op.loc);
+                dataStack.Push(TokenType.@int, op.loc);
             },
             IntrinsicType.store32 => () =>
             {
-                dataStack.ExpectArity(op.loc, TokenType._any, TokenType._any);
+                dataStack.ExpectArity(op.loc, TokenType.any, TokenType.any);
                 dataStack.Pop();
                 dataStack.Pop();
             },
             IntrinsicType.fd_write => () =>
             {
-                dataStack.ExpectArity(op.loc, TokenType._ptr, TokenType._int, TokenType._ptr, TokenType._int);
+                dataStack.ExpectArity(op.loc, TokenType.ptr, TokenType.@int, TokenType.ptr, TokenType.@int);
                 dataStack.Pop();
                 dataStack.Pop();
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push(TokenType._ptr, op.loc);
+                dataStack.Push(TokenType.ptr, op.loc);
             },
             {} cast when cast >= IntrinsicType.cast => () =>
             {
                 dataStack.ExpectArity(1, ArityType.any, op.loc);
                 var A = dataStack.Pop();
-                dataStack.Push(TokenType._int + (int)(cast - IntrinsicType.cast), op.loc);
-                // Info($"Casting {A.type} to {TypeNames(TokenType._int + (int)(cast - IntrinsicType.cast))}");
+                dataStack.Push(TokenType.@int + (int)(cast - IntrinsicType.cast), op.loc);
+                // Info($"Casting {A.type} to {TypeNames(TokenType.@int + (int)(cast - IntrinsicType.cast))}");
             },
             _ => (Action) (() => ErrorHere($"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`", op.loc))
         })(),
@@ -351,11 +349,11 @@ static class TypeChecker
         {
             var stk = stack.ElementAt(i);
             var contr = contract.ElementAt(i);
-            var structOffset = contr - TokenType._data_ptr;
-            var anyPass = contr is not TokenType._any &&
+            var structOffset = contr - TokenType.data_ptr;
+            var anyPass = contr is not TokenType.any &&
                     structOffset >= 0 &&
                     structList.Count > structOffset && 
-                    structList[structOffset].members.First().type is not TokenType._any;
+                    structList[structOffset].members.First().type is not TokenType.any;
 
             if (anyPass && !contr.Equals(stk.type))
             {
@@ -418,16 +416,8 @@ static class TypeChecker
         Array.Reverse(arr);
         return new Stack<T>(arr);
     }
-
-    public record struct TypeFrame(TokenType type, Loc loc)
-    {
-        public static implicit operator TypeFrame((TokenType type, Loc loc) value)
-            => new TypeFrame(value.type, value.loc);
-        public static implicit operator TypeFrame(IRToken value)
-            => new TypeFrame(value.type, value.loc);
-    }
     
-    struct DataStack
+    class DataStack
     {
         public Stack<TypeFrame> typeFrames = new();
         public int minCount = 0;
