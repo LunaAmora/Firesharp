@@ -40,27 +40,13 @@ static class TypeChecker
         },
         OpType.offset => () =>
         {
-            dataStack.ExpectArity(1, ArityType.any, op.loc);
-            var A = dataStack.Pop();
-            Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot `.` access element of type: `{TypeNames(A.type)}`");
-            var word = wordList[op.operand].Split(".*")[1];
-            var stk = structList[A.type - TokenType.data_ptr];
-            var index = stk.members.FindIndex(mem => mem.name.Equals(word));
-            Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
-            op.operand = index * 4;
-            dataStack.Push((int)TokenType.data_ptr + stk.members[index].type - (int)TokenType.@int, op.loc);
+            var offsetType = dataStack.ExpectStructPointer(op, ".*");
+            dataStack.Push((int)TokenType.data_ptr + offsetType - (int)TokenType.@int, op.loc);
         },
         OpType.offset_load => () =>
         {
-            dataStack.ExpectArity(1, ArityType.any, op.loc);
-            var A = dataStack.Pop();
-            Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
-            var word = wordList[op.operand].Split('.')[1];
-            var stk = structList[A.type - TokenType.data_ptr];
-            var index = stk.members.FindIndex(mem => mem.name.Equals(word));
-            Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
-            op.operand = index * 4;
-            dataStack.Push(stk.members[index].type, op.loc);
+            var offsetType = dataStack.ExpectStructPointer(op, ".");
+            dataStack.Push(offsetType, op.loc);
         },
         OpType.swap => () =>
         {
@@ -290,6 +276,19 @@ static class TypeChecker
         })(),
         _ => () => ErrorHere($"Op type not implemented in `TypeCheckOp` yet: `{op.type}`", op.loc)
     };
+
+    static TokenType ExpectStructPointer(this DataStack stack, Op op, string prefix)
+    {
+        stack.ExpectArity(1, ArityType.any, op.loc);
+        var A = stack.Pop();
+        Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
+        var word = wordList[op.operand].Split(prefix)[1];
+        var stk = structList[A.type - TokenType.data_ptr];
+        var index = stk.members.FindIndex(mem => mem.name.Equals(word));
+        Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
+        op.operand = index * 4;
+        return stk.members[index].type;
+    }
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)
     {
