@@ -38,7 +38,7 @@ static class Generator
             output.WriteLine("(func $bind_local (param i32) global.get $LOCAL_STACK local.get 0 i32.store i32.const 4 call $aloc_local)");
             output.WriteLine("(func $push_local (param i32) (result i32) global.get $LOCAL_STACK local.get 0 i32.sub)");
             
-            program.ForEach(op => output.TryWriteLine(GenerateOp(op), op.type.ToString()));
+            program.ForEach(op => output.TryWriteLine(GenerateOp(op), $"{op.type}, operand: {op.operand}"));
 
             output.WriteLine("\n(export \"_start\" (func $start))\n");
 
@@ -55,6 +55,7 @@ static class Generator
 
                 for (int i = 0; i < varList.Count; i++)
                 {
+                    // Info(default, "Generating {2} data: {0}, Value {1}", varList[i].name, varList[i].value, varList[i].type);
                     var hex = varList[i].value.ToString("X");
                     if(hex.Length%2 != 0) hex = hex.PadLeft(hex.Length +1, '0');
                     hex = hex.PadRight(8, '0');
@@ -130,7 +131,7 @@ static class Generator
             IntrinsicType.more      => "  i32.gt_s",
             IntrinsicType.less      => "  i32.lt_s",
             IntrinsicType.load32    => "  i32.load",
-            IntrinsicType.store32   => "  call $swap\n  i32.store",
+            IntrinsicType.store32   => "  call $swap i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",
             {} cast when cast >= IntrinsicType.cast => string.Empty,
             _ => ErrorHere($"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`", op.loc)
@@ -149,14 +150,14 @@ static class Generator
             var offset = 0;
             stk.members.ForEach(member =>
             {
-                sb.Append($"    i32.const 4 call $push_local i32.load\n");
+                sb.Append($"    i32.const 4 call $push_local i32.load");
                 sb.Append($"    i32.const {4 * offset++} i32.add i32.load\n");
             });
             sb.Append("  i32.const 4 call $free_local");
         }
         else if(count == 2)
         {
-            sb.Append("  call $dup i32.load call $swap\n");
+            sb.Append("  call $dup i32.load call $swap");
             sb.Append("  i32.const 4 i32.add i32.load");
         }
         else
@@ -223,8 +224,10 @@ static class Generator
                 {
                     var offset = proc.procMemSize + (a + 1) * 4;
                     sb.Append($"\n  i32.const {offset} call $push_local i32.const {value} i32.store");
+                    sb.Append($" ;; initialize_local, operand: {a}");
                 }
             }
+            sb.Append("\n ");
             
             if(contr.ins > 0) sb.Append("\n ");
             for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
