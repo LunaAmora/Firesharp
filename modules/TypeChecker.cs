@@ -36,10 +36,7 @@ static class TypeChecker
             Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot unpack element of type: `{TypeNames(A.type)}`");
             var stk = structList[A.type - TokenType.data_ptr];
             op.operand = structList.IndexOf(stk);
-            stk.members.ForEach(member => 
-            {
-                dataStack.Push((int)TokenType.data_ptr + member.type - (int)TokenType.@int, op.loc);
-            });
+            stk.members.ForEach(member => dataStack.Push(member.type, op.loc));
         },
         OpType.offset => () =>
         {
