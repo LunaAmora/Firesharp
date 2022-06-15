@@ -45,7 +45,7 @@ static class Generator
             if (dataList.Count > 0 || varList.Count > 0)
             {
                 output.WriteLine("(data (i32.const 0)");
-                dataList.ForEach(data => 
+                dataList.Where((a) => a.offset != -1).OrderBy((a) => a.offset).ToList().ForEach(data => 
                 {
                     if(data.offset >= 0) output.WriteLine("  \"{0}\"", data.name);
                 });
@@ -227,9 +227,8 @@ static class Generator
                     sb.Append($" ;; initialize_local, operand: {a}");
                 }
             }
-            sb.Append("\n ");
             
-            if(contr.ins > 0) sb.Append("\n ");
+            if(contr.ins > 0 || count > 0) sb.Append("\n ");
             for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         }
         return sb.ToString();

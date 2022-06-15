@@ -221,6 +221,7 @@ class Parser
         var data = dataList[operand];
         if(data.offset == -1)
         {
+            // Info(default, "Registering the {2} string {0} at {1}", data.name, totalDataSize, operand);
             data.offset = totalDataSize;
             totalDataSize += data.size;
         }
