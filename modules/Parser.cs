@@ -106,8 +106,12 @@ class Parser
             "-" => IntrinsicType.minus,
             "*" => IntrinsicType.times,
             "%" => IntrinsicType.div,
-            ">" => IntrinsicType.more,
-            "<" => IntrinsicType.less,
+            ">" => IntrinsicType.greater,
+            "<" => IntrinsicType.lesser,
+            "@8" => IntrinsicType.load8,
+            "!8" => IntrinsicType.store8,
+            "@16" => IntrinsicType.load16,
+            "!16" => IntrinsicType.store16,
             "@32" => IntrinsicType.load32,
             "!32" => IntrinsicType.store32,
             "fd_write" => IntrinsicType.fd_write,
@@ -594,6 +598,7 @@ class Parser
     {
         result = new Stack<(TypeFrame frame, int value)>();
         IRToken token = default;
+        skip = 0;
         for (int i = 0; i < IRTokens.Count; i++)
         {
             token = IRTokenAt(i);
@@ -620,10 +625,15 @@ class Parser
                     }
                 }
             }
-            if(!EvalToken(token, result)()) break;
+            if(!EvalToken(token, result)())
+            {
+                var errorTok = result.Pop();
+                result.Clear();
+                result.Push(errorTok);
+                return false;
+            }
         }
         result.Push(default);
-        skip = 0;
         return false;
     }
 
@@ -676,14 +686,22 @@ class Parser
                     evalStack.Push(((TokenType.@int + (int)(cast - IntrinsicType.cast), op.loc), A.value));
                     return true;
                 },
-                _ => (Func<bool>)(() => false),
+                _ => (Func<bool>)(() => 
+                {
+                    evalStack.Push(((TokenType.word, tok.loc), tok.operand));
+                    return false;
+                }),
             })(),
             var word when TryGetConstName(word) is {} cnst => () =>
             {
                 evalStack.Push(((cnst.type, tok.loc), cnst.value));
                 return true;
             },
-            _ => (Func<bool>)(() => false),
+            _ => (Func<bool>)(() => 
+            {
+                evalStack.Push(((TokenType.word, tok.loc), tok.operand));
+                return false;
+            }),
         })(),
         TokenType.keyword => () => ((KeywordType)tok.operand switch
         {
@@ -731,7 +749,11 @@ class Parser
                 evalStack.Push(((TokenType.@bool, tok.loc), A.value == B.value ? 1 : 0));
                 return true;
             },
-            _ => (Func<bool>)(() => false),
+            _ => (Func<bool>)(() => 
+            {
+                evalStack.Push(((TokenType.keyword, tok.loc), tok.operand));
+                return false;
+            }),
         })(),
          _ => () => false,
     };
@@ -789,7 +811,6 @@ class Parser
                 }
             }
         }
-
         structVarsList.Add((word, wordIndex));
     }
 
@@ -809,7 +830,7 @@ class Parser
             var name = ExpectToken(loc, TokenType.word, "struct member name");
             if(NextIRToken() is {} nameType && name is {operand: int index})
             {
-                var sb = "Expected struct member type but found";
+                var errorText = "Expected struct member type but found";
                 var foundWord = wordList[index];
                 if(nameType is {type: TokenType.keyword})
                 {
@@ -818,7 +839,7 @@ class Parser
                     {
                         members.Add((foundWord, KeywordToDataType(key)));
                     }
-                    else Error(loc, $"{sb} the Keyword: `{key}`");
+                    else Error(loc, $"{errorText} the Keyword: `{key}`");
                 }
                 else if(nameType is {type: TokenType.word, operand: int typeIndex})
                 {
@@ -826,17 +847,15 @@ class Parser
                     if (TryGetTypeName(foundType) is {} structType)
                     {
                         foreach (var member in structType.members)
-                        {
                             members.Add(($"{foundWord}.{member.name}", member.type));
-                        }
                     }
                     else if (TryGetDataPointer(foundType, out int dataId))
                     {
-                        members.Add(($"{foundWord}", TokenType.@int + dataId));
+                        members.Add((foundWord, TokenType.@int + dataId));
                     }
-                    else Error(nameType.loc, $"{sb} the Word: `{foundType}`");
+                    else Error(nameType.loc, $"{errorText} the Word: `{foundType}`");
                 }
-                else Error(nameType.loc, $"{sb}: `{TypeNames(nameType.type)}`");
+                else Error(nameType.loc, $"{errorText}: `{TypeNames(nameType.type)}`");
             }
         }
         Error(loc, "Expected struct members or `end` after struct declaration");
@@ -858,20 +877,25 @@ class Parser
                 if(keyword is KeywordType.colon)
                 {
                     constList.Add(newVar);
-                    return true;
                 }
                 else
                 {
                     if (InsideProc) CurrentProc.localVars.Add(newVar);
                     else varList.Add(newVar);
-                    return true;
                 }
+                return true;
             }
-            else
+
+            var foundType = eval.frame.type;
+            var declarationType = (keyword is KeywordType.colon ? "constant " : "variable ") + TypeNames(tokType);
+            var (foundDesc, foundName) = foundType switch
             {
-                var constOrVarName = keyword is KeywordType.colon ? "constant" : "variable";
-                Error(eval.frame.loc, $"Invalid token found on {constOrVarName} declaration: `{TypeNames(eval.frame.type)}`");
-            }
+                TokenType.keyword => ("keyword", ((KeywordType)eval.value).ToString()),
+                TokenType.word    => ("word or intrinsic", wordList[eval.value]),
+                                _ => ("token", TypeNames(foundType))
+            };
+
+            Error(eval.frame.loc, $"Invalid {foundDesc} found on {declarationType} declaration: `{foundName}`");
         }
         return false;
     }
@@ -895,8 +919,8 @@ class Parser
                 }
                 else if (typ is KeywordType.arrow)
                 {
-                    if(!foundArrow) foundArrow = true;
-                    else return Assert(false, tok.loc, "Duplicated `->` found on procedure definition");
+                    Assert(!foundArrow, tok.loc, "Duplicated `->` found on procedure definition");
+                    foundArrow = true;
                 }
                 else if (typ is KeywordType.colon)
                 {
@@ -906,7 +930,7 @@ class Parser
                 else
                 {
                     sb.Append($": `{typ}`");
-                    return Assert(false, tok.loc, sb.ToString());
+                    Error(tok.loc, sb.ToString());
                 }
                 continue;
             }
@@ -929,17 +953,18 @@ class Parser
                 else
                 {
                     sb.Append($" the Word: `{foundWord}`");
-                    return Assert(false, tok.loc, sb.ToString());
+                    Error(tok.loc, sb.ToString());
                 }
             }
             else
             {
                 sb.Append($": `{TypeNames(tok.type)}`");
-                return Assert(false, tok.loc, sb.ToString());
+                Error(tok.loc, sb.ToString());
             }
         }
         sb.Append(" nothing");
-        return Assert(false, op.loc, sb.ToString());
+        Error(op.loc, sb.ToString());
+        return false;
     }
 
     static TokenType KeywordToDataType(KeywordType? type) => type switch
