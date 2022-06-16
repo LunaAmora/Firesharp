@@ -3,6 +3,7 @@ using System.Diagnostics;
 using CliFx.Infrastructure;
 using CliFx.Attributes;
 using CliFx.Exceptions;
+using CliWrap;
 using CliFx;
 
 namespace Firesharp;
@@ -72,6 +73,17 @@ static partial class Firesharp
             return _console;
         }
         set => _console = value;
+    }
+
+    public static async Task CmdEcho(string target, params string[] arg)
+    {
+        var cmd = Cli.Wrap(target)
+            .WithValidation(CommandResultValidation.None)
+            .WithArguments(arg) |
+            (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
+        WritePrefix("[CMD] ", cmd.ToString());
+        var result = await cmd.ExecuteAsync();
+        Assert(result.ExitCode == 0, error: "External command error, please report this in the project's github!");
     }
 
     public static void Write(string format, params object?[] arg)

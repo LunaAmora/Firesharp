@@ -1,6 +1,4 @@
-﻿using CliWrap;
-
-namespace Firesharp;
+﻿namespace Firesharp;
 
 using static Parser;
 
@@ -74,17 +72,6 @@ static class Generator
         // await CmdEcho("wasm-opt", "-Oz", "--enable-multivalue", outWasm, "-o", outWasm);
         // await CmdEcho("wasm2wat", outWasm, "-o", outPath);
         await CmdEcho("wasmtime", outWasm);
-    }
-
-    static async Task CmdEcho(string target, params string[] arg)
-    {
-        var cmd = Cli.Wrap(target)
-            .WithValidation(CommandResultValidation.None)
-            .WithArguments(arg) |
-            (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
-        WritePrefix("[CMD] ", cmd.ToString());
-        var result = await cmd.ExecuteAsync();
-        Assert(result.ExitCode == 0, error: "External command error, please report this in the project's github!");
     }
     
     static void TryWriteLine(this StreamWriter writer, string text, string comment)
