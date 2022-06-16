@@ -227,6 +227,10 @@ static class TypeChecker
             dataStack.Pop();
             dataStack.Push(TokenType.@bool, op.loc);
         },
+        OpType.expectType => () =>
+        {
+            dataStack.ExpectArity(1, (TokenType)(op.operand), op.loc);
+        },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
             IntrinsicType.plus  or
@@ -271,10 +275,6 @@ static class TypeChecker
                 var A = dataStack.Pop();
                 dataStack.Push(TokenType.@int + (int)(cast - IntrinsicType.cast), op.loc);
                 // Info($"Casting {A.type} to {TypeNames(TokenType.@int + (int)(cast - IntrinsicType.cast))}");
-            },
-            {} cast when cast <= (IntrinsicType)(-1) => () =>
-            {
-                dataStack.ExpectArity(1, (TokenType) (int)-(1 + (int)cast), op.loc);
             },
             _ => (Action) (() => ErrorHere($"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`", op.loc))
         })(),

@@ -126,6 +126,7 @@ class Parser
             "int"  =>  0,
             "bool" =>  1,
             "ptr"  =>  2,
+            "any"  =>  3,
             {} when word.StartsWith('*') && TryParseDataType(word.Split('*')[1], out result) => result,
             {} when TryParseDataType(word, out result) => result,
             _ => -1
@@ -354,7 +355,7 @@ class Parser
         var index = vars.FindIndex(val => val.name.Equals(word));
         if (index >= 0)
         {
-            if (store) program.Add((OpType.intrinsic, -1 -(int)vars[index].type, loc));
+            if (store) program.Add((OpType.expectType, (int)vars[index].type, loc));
 
             program.Add((pushType, index, loc));
 
@@ -401,7 +402,7 @@ class Parser
                     var operand = index + (local == store ? i : -i);
                     // Info(loc, "{0} -> {1} = {2}", $"{word}.{member.name}", member.type, operand);
 
-                    if (store) program.Add((OpType.intrinsic, -1 -(int)member.type, loc));
+                    if (store) program.Add((OpType.expectType, (int)member.type, loc));
                     
                     program.Add((pushType, operand, loc));
 

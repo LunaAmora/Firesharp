@@ -136,11 +136,11 @@ public enum OpType
     @do,
     end_while,
     unpack,
+    expectType,
 }
 
 public enum IntrinsicType
 {
-    // negative intrinsic values are used to expect the stack to contain a dataType starting at `@int`
     plus,
     minus,
     times,
