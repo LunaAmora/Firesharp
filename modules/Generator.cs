@@ -132,8 +132,12 @@ static class Generator
         {
             IntrinsicType.plus      => "  i32.add",
             IntrinsicType.minus     => "  i32.sub",
-            IntrinsicType.more      => "  i32.gt_s",
-            IntrinsicType.less      => "  i32.lt_s",
+            IntrinsicType.greater   => "  i32.gt_s",
+            IntrinsicType.lesser    => "  i32.lt_s",
+            IntrinsicType.load8     => "  i32.load8_s",
+            IntrinsicType.store8    => "  call $swap i32.store8",
+            IntrinsicType.load16    => "  i32.load16_s",
+            IntrinsicType.store16   => "  call $swap i32.store16",
             IntrinsicType.load32    => "  i32.load",
             IntrinsicType.store32   => "  call $swap i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",
@@ -233,7 +237,7 @@ static class Generator
                 }
             }
             
-            if(contr.ins > 0 || count > 0) sb.Append("\n ");
+            if(contr.ins > 0 || (count > 0 && debug)) sb.Append("\n ");
             for (int i = 0; i < contr.ins; i++) sb.Append($" local.get {i}");
         }
         return sb.ToString();

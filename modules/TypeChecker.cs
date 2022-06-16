@@ -240,20 +240,24 @@ static class TypeChecker
                 dataStack.Pop();
                 dataStack.Push(dataStack.Pop().type, op.loc);
             },
-            IntrinsicType.more or
-            IntrinsicType.less => () =>
+            IntrinsicType.greater or
+            IntrinsicType.lesser => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
                 dataStack.Pop();
                 dataStack.Push(TokenType.@bool, op.loc);
             },
+            IntrinsicType.load8 or
+            IntrinsicType.load16 or
             IntrinsicType.load32 => () =>
             {
                 dataStack.ExpectArity(1, TokenType.ptr, op.loc);
                 dataStack.Pop();
                 dataStack.Push(TokenType.@int, op.loc);
             },
+            IntrinsicType.store8 or
+            IntrinsicType.store16 or
             IntrinsicType.store32 => () =>
             {
                 dataStack.ExpectArity(op.loc, TokenType.any, TokenType.any);
