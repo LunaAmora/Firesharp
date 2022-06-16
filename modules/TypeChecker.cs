@@ -348,6 +348,9 @@ static class TypeChecker
     }
 
     static bool ExpectArity(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
+        => ExpectArity(stack, loc, true, contract);
+
+    static bool ExpectArity(this IEnumerable<TypeFrame> stack, Loc loc, bool panic, params TokenType[] contract)
     {
         for (int i = 0; i < contract.Count(); i++)
         {
@@ -361,7 +364,7 @@ static class TypeChecker
             if(anyPass) continue;
             if(!contr.Equals(stk.type))
             {
-                Error(loc, $"Expected type `{TypeNames(contr)}`, but found `{TypeNames(stk.type)}`",
+                Assert(!panic, loc, $"Expected type `{TypeNames(contr)}`, but found `{TypeNames(stk.type)}`",
                     $"{stk.loc} [INFO] The type found was declared here");
                 return false;
             }
@@ -369,17 +372,15 @@ static class TypeChecker
         return true;
     }
 
-    static bool ExpectStackExact(this DataStack stack, Loc loc, params TokenType[] contract)
+    static void ExpectStackExact(this DataStack stack, Loc loc, params TokenType[] contract)
         => ExpectStackExact(stack.typeFrames, loc, contract);
 
-    public static bool ExpectStackExact(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
+    public static void ExpectStackExact(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
     {
-        // Info(loc, $"eval types:   {ListTypes(stack, false)}");
-        Assert(stack.Count() == contract.Count(), loc,
-        $"Expected stack at the end of the procedure does not match the procedure contract:",
-            $"{loc} [INFO] Expected types: {ListTypes(contract.ToList())}",
+        Assert(stack.Count() == contract.Count() && stack.ExpectArity(loc, false, contract), loc,
+        $"Found stack at the end of the context does match the expected types:",
+            $"{loc} [INFO] Expected types: {ListTypes(contract.Reverse<TokenType>().ToList())}",
             $"{loc} [INFO] Actual types:   {ListTypes(stack, true)}");
-        return(stack.ExpectArity(loc, contract));
     }
 
     static bool ExpectStackArity(DataStack expected, DataStack actual, Loc loc, string errorText)
