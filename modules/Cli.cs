@@ -52,16 +52,17 @@ static partial class Firesharp
 
     public static void TryReadFile(FileInfo fileInfo)
     {
+        var filePath = fileInfo.ToString();
         try
         {
             using (var file = fileInfo.Open(FileMode.Open))
             {
-                Parser.TokenizeFile(file, fileInfo.ToString());
+                Parser.TokenizeFile(file, filePath);
             }
         }
         catch (System.IO.FileNotFoundException)
         {
-            Error(error: $"Failed to open the file: {fileInfo.ToString()}");
+            Error(error: $"Failed to open the file: {filePath}");
         }
     }
 

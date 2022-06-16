@@ -490,19 +490,18 @@ class Parser
                 }
                 else if(colonCount == 1 && token.type is TokenType.@int)
                 {
-                    var lastToken = IRTokenAt(i-1);
-                    if(lastToken.type is TokenType.keyword 
-                        && (KeywordType)lastToken.operand is KeywordType.equal)
+                    if(!(IRTokenAt(i-1) is {type: TokenType.keyword, operand: int op}
+                        && (KeywordType)op is KeywordType.equal))
                     {
-                        context = KeywordType.@int;
+                        context = KeywordType.mem;
+                        break;
                     }
-                    else context = KeywordType.mem;
-                    break;
                 }
                 else if(colonCount == 1 && token.type is TokenType.word)
                 {
-                    if(TryGetTypeName(wordList[token.operand], out _) ||
-                       TryGetDataPointer(wordList[token.operand], out _))
+                    var foundWord = wordList[token.operand];
+                    if(TryGetTypeName(foundWord, out _) ||
+                       TryGetDataPointer(foundWord, out _))
                     {
                         context = KeywordType.proc;
                         break;
@@ -511,9 +510,9 @@ class Parser
                     {
                         var n1 = IRTokenAt(i+1);
                         var n2 = IRTokenAt(i+2);
-                        if(n1.type is TokenType.keyword)
+                        if(n1.type is TokenType.word)
                         {
-                            if(KeywordToDataType((KeywordType)n1.operand) is not TokenType.keyword && (
+                            if(TryGetTypeName(wordList[n1.operand], out _) && (
                                 (n2.type is TokenType.keyword && (KeywordType)n2.operand is KeywordType.end) ||
                                 (n2.type is TokenType.word)))
                             {
@@ -532,7 +531,7 @@ class Parser
             
             context = (KeywordType)token.operand;
 
-            if(colonCount == 0 && (KeywordType.wordTypes | KeywordType.dataTypes).HasFlag(context))
+            if(colonCount == 0 && KeywordType.wordTypes.HasFlag(context))
             {
                 NextIRToken();
                 break;
@@ -587,8 +586,6 @@ class Parser
             KeywordType.proc => ParseProcedure(word, ref result, (OpType.prep_proc, loc)),
             KeywordType.mem  => ParseMemory(word, loc),
             KeywordType.@struct => ParseStruct(word, loc), 
-            _ when KeywordToDataType(context) is {} tokType
-              => ParseConstOrVar(word, loc, tokType, ref result),
             _ => false
         };
     }
@@ -833,27 +830,21 @@ class Parser
             if(NextIRToken() is {} nameType)
             {
                 var errorText = "Expected struct member type but found";
-                if(nameType.type is TokenType.keyword)
-                {
-                    var key = (KeywordType)nameType.operand;
-                    if(KeywordType.dataTypes.HasFlag(key))
-                    {
-                        members.Add((foundWord, KeywordToDataType(key)));
-                    }
-                    else Error(loc, $"{errorText} the Keyword: `{key}`");
-                }
-                else if(nameType is {type: TokenType.word, operand: int typeIndex})
+                if(nameType is {type: TokenType.word, operand: int typeIndex})
                 {
                     var foundType = wordList[typeIndex];
                     if(TryGetTypeName(foundType, out StructType structType))
                     {
-                        foreach (var member in structType.members)
+                        if(structType.members.Count == 1) members.Add(($"{foundWord}", structType.members[0].type));
+                        else foreach (var member in structType.members)
                             members.Add(($"{foundWord}.{member.name}", member.type));
                     }
                     else if(TryGetDataPointer(foundType, out TokenType typePtr))
                         members.Add((foundWord, typePtr));
                     else Error(nameType.loc, $"{errorText} the Word: `{foundType}`");
                 }
+                else if(nameType.type is TokenType.keyword)
+                    Error(loc, $"{errorText} the Keyword: `{(KeywordType)nameType.operand}`");
                 else Error(nameType.loc, $"{errorText}: `{TypeNames(nameType.type)}`");
             }
         }
@@ -910,12 +901,7 @@ class Parser
         {
             if(tok.type is TokenType.keyword && (KeywordType)tok.operand is {} typ)
             {
-                if(KeywordToDataType(typ) is {} key && key is not TokenType.keyword)
-                {
-                    if(!foundArrow) ins.Add(key);
-                    else outs.Add(key);
-                }
-                else if(typ is KeywordType.arrow)
+                if(typ is KeywordType.arrow)
                 {
                     Assert(!foundArrow, tok.loc, "Duplicated `->` found on procedure definition");
                     foundArrow = true;
@@ -964,15 +950,7 @@ class Parser
         Error(op.loc, sb.ToString());
         return false;
     }
-
-    static TokenType KeywordToDataType(KeywordType? type) => type switch
-    {
-        KeywordType.@int => TokenType.@int,
-        KeywordType.ptr => TokenType.ptr,
-        KeywordType.@bool => TokenType.@bool,
-        _ => TokenType.keyword
-    };
-
+    
     static int DataTypeToCast(TokenType type)
     {
         if(type < TokenType.@int) return -1;
