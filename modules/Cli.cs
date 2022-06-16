@@ -11,25 +11,29 @@ namespace Firesharp;
 public class CompileCommand : ICommand
 {
     [CommandParameter(0, Description = "Compile a `.fire` file to WebAssembly.")]
-    public FileInfo? file { get; init; }
+    public FileInfo? InputFile { get; init; }
+    [CommandOption("debug", 'd', Description = "Add OpTypes information to output `.wat` file")]
+    public bool DebugMode { get; init; } = false;
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
         FConsole = console;
-        if(file is {})
+        debug = DebugMode;
+        if(InputFile is {})
         {
-            Assert(file.Extension.Equals(".fire"), error: "The input file name provided is not valid");
-            Assert(file.Exists, error: "Failed to find the provided file");
-            TryReadFile(file);
+            Assert(InputFile.Extension.Equals(".fire"), error: "The input file name provided is not valid");
+            Assert(InputFile.Exists, error: "Failed to find the provided file");
+            TryReadFile(InputFile);
             Parser.ParseTokens();
             TypeChecker.TypeCheck(Parser.program);
-            await Generator.GenerateWasm(Parser.program, file.ToString());
+            await Generator.GenerateWasm(Parser.program, InputFile.ToString());
         }
     }
 }
 
 static partial class Firesharp
 {
+    public static bool debug = false;
     static IConsole? _console;
 
     public static void TryReadRelative(Loc loc, string target)

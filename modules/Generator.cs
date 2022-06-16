@@ -89,7 +89,11 @@ static class Generator
     
     static void TryWriteLine(this StreamWriter writer, string text, string comment)
     {
-        if (!string.IsNullOrEmpty(text)) writer.WriteLine($"{text} ;; {comment}");
+        if (!string.IsNullOrEmpty(text))
+        {
+            if(debug) writer.WriteLine($"{text} ;; {comment}");
+            else writer.WriteLine(text);
+        }
     }
 
     static string GenerateOp(Op op) => op.type switch
@@ -225,7 +229,7 @@ static class Generator
                 {
                     var offset = proc.procMemSize + (a + 1) * 4;
                     sb.Append($"\n  i32.const {offset} call $push_local i32.const {value} i32.store");
-                    sb.Append($" ;; initialize_local, operand: {a}");
+                    if(debug) sb.Append($" ;; initialize_local, operand: {a}");
                 }
             }
             
