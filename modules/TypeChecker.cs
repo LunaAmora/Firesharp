@@ -89,7 +89,7 @@ static class TypeChecker
         OpType.push_local_mem => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.call => () => 
         {
-            if (procList[op.operand] is var (_, (ins, outs)))
+            if(procList[op.operand] is var (_, (ins, outs)))
             {
                 var insCopy = new List<TokenType>(ins);
                 insCopy.Reverse();
@@ -325,14 +325,14 @@ static class TypeChecker
     {
         for (int i = 0; i < arityN; i++)
         {
-            if (!ExpectType(stack.ElementAt(i), type, loc)) return false;
+            if(!ExpectType(stack.ElementAt(i), type, loc)) return false;
         }
         return true;
     }
 
     public static bool ExpectType(TypeFrame frame, TokenType expected, Loc loc)
     {
-        if (!expected.Equals(frame.type))
+        if(!expected.Equals(frame.type))
         {
             Error(loc, $"Expected type `{TypeNames(expected)}`, but found `{TypeNames(frame.type)}`",
                 $"{frame.loc} [INFO] The type found was declared here");
@@ -358,8 +358,8 @@ static class TypeChecker
                     (structOffset >= 0 &&
                     structList.Count > structOffset && 
                     structList[structOffset].members.First().type is TokenType.any);
-            if (anyPass) continue;
-            if (!contr.Equals(stk.type))
+            if(anyPass) continue;
+            if(!contr.Equals(stk.type))
             {
                 Error(loc, $"Expected type `{TypeNames(contr)}`, but found `{TypeNames(stk.type)}`",
                     $"{stk.loc} [INFO] The type found was declared here");
@@ -395,7 +395,7 @@ static class TypeChecker
     public static string ListTypes(this IEnumerable<TypeFrame> types, bool verbose)
     {
         var typs = ListTypes(types.Reverse<TypeFrame>().Select(t => t.type).ToList());
-        if (verbose)
+        if(verbose)
         {
             var sb = new StringBuilder(typs);
             sb.Append("\n");
@@ -459,7 +459,7 @@ static class TypeChecker
         void stackMinus()
         {
             stackCount--;
-            if (stackCount < minCount) minCount = stackCount;
+            if(stackCount < minCount) minCount = stackCount;
         }
     }
     

@@ -8,7 +8,7 @@ static class Generator
 {
     public static async Task GenerateWasm(List<Op> program, string filepath)
     {
-        if (Path.GetDirectoryName(filepath) is not string dir)
+        if(Path.GetDirectoryName(filepath) is not string dir)
         {
             Error(error: "Could not resolve file directory");
             return;
@@ -42,7 +42,7 @@ static class Generator
 
             output.WriteLine("\n(export \"_start\" (func $start))\n");
 
-            if (dataList.Count > 0 || varList.Count > 0)
+            if(dataList.Count > 0 || varList.Count > 0)
             {
                 output.WriteLine("(data (i32.const 0)");
                 dataList.Where((a) => a.offset != -1).OrderBy((a) => a.offset).ToList().ForEach(data => 
@@ -89,7 +89,7 @@ static class Generator
     
     static void TryWriteLine(this StreamWriter writer, string text, string comment)
     {
-        if (!string.IsNullOrEmpty(text))
+        if(!string.IsNullOrEmpty(text))
         {
             if(debug) writer.WriteLine($"{text} ;; {comment}");
             else writer.WriteLine(text);
@@ -255,13 +255,13 @@ static class Generator
     static string BlockContract((int ins, int outs) contract)
     {
         var sb = new StringBuilder();
-        if (contract.ins > 0)
+        if(contract.ins > 0)
         {
             sb.Append(" (param");
             sb.Insert(sb.Length, " i32", contract.ins);
             sb.Append(")");
         }
-        if (contract.outs > 0)
+        if(contract.outs > 0)
         {
             sb.Append(" (result");
             sb.Insert(sb.Length, " i32", contract.outs);

@@ -74,7 +74,7 @@ class Parser
 
     static IRToken? PeekIRToken()
     {
-        if (IRTokens.Count > 0) return IRTokens.First();
+        if(IRTokens.Count > 0) return IRTokens.First();
         return null;
     }
 
@@ -140,7 +140,7 @@ class Parser
 
     static bool TryParseDataType(string word, out int result)
     {
-        if (!(TryGetTypeName(word) is {} type)) result = -1;
+        if(!(TryGetTypeName(word, out StructType type))) result = -1;
         else result = TokenType.data_ptr + structList.IndexOf(type) - TokenType.@int;
         return result >= 0;
     }
@@ -235,11 +235,9 @@ class Parser
     
     private static Op? IncludeFile(Loc loc)
     {
-        if(ExpectToken(loc, TokenType.str, "include file name") is {} path)
-        {
-            var word = dataList[path.operand];
-            TryReadRelative(loc, word.name);
-        }
+        var path = ExpectToken(loc, TokenType.str, "include file name");
+        var word = dataList[path.operand];
+        TryReadRelative(loc, word.name);
         return null;
     }
 
@@ -324,7 +322,7 @@ class Parser
         if(InsideProc && CurrentProc is {} proc)
         {
             var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
-            if (index >= 0)
+            if(index >= 0)
             {
                 return (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
             }
@@ -337,18 +335,18 @@ class Parser
         var store = false;
         var pointer = false;
         
-        if (word.StartsWith('!'))
+        if(word.StartsWith('!'))
         {
             word = word.Split('!')[1];
             store = true;
         }
-        else if (word.StartsWith('*'))
+        else if(word.StartsWith('*'))
         {
             word = word.Split('*')[1];
             pointer = true;
         }
         
-        if (InsideProc && TryGetVar(word, loc, CurrentProc.localVars, true, store, pointer))
+        if(InsideProc && TryGetVar(word, loc, CurrentProc.localVars, true, store, pointer))
             return true;
         return TryGetVar(word, loc, varList, false, store, pointer);
     }
@@ -357,14 +355,14 @@ class Parser
     {
         var pushType = local ? OpType.push_local : OpType.push_global;
         var index = vars.FindIndex(val => val.name.Equals(word));
-        if (index >= 0)
+        if(index >= 0)
         {
-            if (store) program.Add((OpType.expectType, (int)vars[index].type, loc));
+            if(store) program.Add((OpType.expectType, (int)vars[index].type, loc));
 
             program.Add((pushType, index, loc));
 
-            if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
-            else if (pointer)
+            if(store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
+            else if(pointer)
             {
                 var pointerType = vars[index].type - TokenType.@int + TokenType.data_ptr;
                 program.Add((OpType.intrinsic, DataTypeToCast(pointerType), loc));
@@ -378,10 +376,10 @@ class Parser
         }
 
         index = vars.FindIndex(val => val.name.StartsWith($"{word}."));
-        if (index >= 0 && TryGetStructVars(word) is {} structType)
+        if(index >= 0 && TryGetStructVars(word, out StructType structType))
         {
             StructMember member = structType.members.First();
-            if (pointer)
+            if(pointer)
             {
                 index = vars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
                 var data_ptrTypeId = structList.IndexOf(structType);
@@ -393,7 +391,7 @@ class Parser
             {
                 var members = new List<StructMember>(structType.members);
 
-                if (store)
+                if(store)
                 {
                     members.Reverse();
                     member = structType.members.Last();
@@ -406,11 +404,11 @@ class Parser
                     var operand = index + (local == store ? i : -i);
                     // Info(loc, "{0} -> {1} = {2}", $"{word}.{member.name}", member.type, operand);
 
-                    if (store) program.Add((OpType.expectType, (int)member.type, loc));
+                    if(store) program.Add((OpType.expectType, (int)member.type, loc));
                     
                     program.Add((pushType, operand, loc));
 
-                    if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
+                    if(store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
                     else
                     {
                         program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
@@ -423,27 +421,33 @@ class Parser
         return false;
     }
 
-    static StructType? TryGetStructVars(string word)
+    static bool TryGetStructVars(string word, out StructType result)
     {
         var index = structVarsList.FindIndex(vars => vars.name.Equals(word));
-        if (index >= 0)
+        if(index >= 0)
         {
-            return TryGetTypeName(wordList[structVarsList[index].offset]);
+            return TryGetTypeName(wordList[structVarsList[index].offset], out result);
         }
-        return null;
+        result = default;
+        return false;
     }
 
-    static StructType? TryGetTypeName(string word)
+    static bool TryGetTypeName(string word, out StructType result)
     {
         var index = structList.FindIndex(type => type.name.Equals(word));
-        if (index >= 0) return structList[index];
-        return null;
+        if(index >= 0)
+        {
+            result = structList[index];
+            return true;
+        }
+        result = default;
+        return false;
     }
     
     static Op? TryGetGlobalMem(string word, Loc loc)
     {
         var index = memList.FindIndex(mem => mem.name.Equals(word));
-        if (index >= 0)
+        if(index >= 0)
         {
             return (OpType.push_global_mem, memList[index].offset, loc);
         }
@@ -469,12 +473,12 @@ class Parser
         for (int i = 0; i < IRTokens.Count; i++)
         {
             var token = IRTokenAt(i);
-            if (token.type is not TokenType.keyword)
+            if(token.type is not TokenType.keyword)
             {
                 if(colonCount == 0)
                 {
                     if(token.type is TokenType.word
-                        && TryGetTypeName(wordList[token.operand]) is {} structType)
+                        && TryGetTypeName(wordList[token.operand], out StructType structType))
                     {
                         NextIRToken();
                         ParseStructVar(word, loc, token.operand, structType);
@@ -495,8 +499,8 @@ class Parser
                 }
                 else if(colonCount == 1 && token.type is TokenType.word)
                 {
-                    if (TryGetTypeName(wordList[token.operand]) is {} structType ||
-                        TryGetDataPointer(wordList[token.operand], out int _))
+                    if(TryGetTypeName(wordList[token.operand], out StructType _) ||
+                       TryGetDataPointer(wordList[token.operand], out int _))
                     {
                         context = KeywordType.proc;
                         break;
@@ -545,7 +549,7 @@ class Parser
                     Assert(varEval.frame.type is not TokenType.any, varEval.frame.loc, "Undefined variable value is not allowed");
                     NextIRTokens(skip);
                     TypedWord newVar = (word, varEval.value, varEval.frame.type);
-                    if (InsideProc) CurrentProc.localVars.Add(newVar);
+                    if(InsideProc) CurrentProc.localVars.Add(newVar);
                     else varList.Add(newVar);
                     return true;
                 }
@@ -762,20 +766,16 @@ class Parser
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after variable type definition");
         var assign = ExpectKeyword(loc, KeywordType.assignTypes, "`:` or `=` after keyword `:`");
+        var keyword = (KeywordType)assign.operand;
 
         var members = new List<StructMember>(structType.members);
         var success = CompileEval(members.Count, out Stack<(TypeFrame frame, int value)> result, out int skip);
         Assert(success, loc, "Failed to parse an valid struct value at compile-time evaluation");
 
         var endToken = NextIRTokens(skip);
-        if (!(assign is {operand: int op} && (KeywordType)op is {} keyword))
-        {
-            Error(loc, "error");
-            return;
-        }
 
         members.Reverse();
-        if(result.Count == 1 && result.Pop() is {frame: {type: TokenType.any}})
+        if(result.Count == 1 && result.Pop() is {frame.type: TokenType.any})
         {
             foreach (var member in members)
             {
@@ -785,7 +785,7 @@ class Parser
                 if(keyword is KeywordType.colon) constList.Add(structVar);
                 else
                 {
-                    if (InsideProc) CurrentProc.localVars.Add(structVar);
+                    if(InsideProc) CurrentProc.localVars.Add(structVar);
                     else varList.Add(structVar);
                 }
             }
@@ -806,7 +806,7 @@ class Parser
                 if(keyword is KeywordType.colon) constList.Add(structVar);
                 else
                 {
-                    if (InsideProc) CurrentProc.localVars.Add(structVar);
+                    if(InsideProc) CurrentProc.localVars.Add(structVar);
                     else varList.Add(structVar);
                 }
             }
@@ -827,8 +827,8 @@ class Parser
                 return true;
             }
 
-            var name = ExpectToken(loc, TokenType.word, "struct member name");
-            if(NextIRToken() is {} nameType && name is {operand: int index})
+            var index = ExpectToken(loc, TokenType.word, "struct member name").operand;
+            if(NextIRToken() is {} nameType)
             {
                 var errorText = "Expected struct member type but found";
                 var foundWord = wordList[index];
@@ -844,12 +844,12 @@ class Parser
                 else if(nameType is {type: TokenType.word, operand: int typeIndex})
                 {
                     var foundType = wordList[typeIndex];
-                    if (TryGetTypeName(foundType) is {} structType)
+                    if(TryGetTypeName(foundType, out StructType structType))
                     {
                         foreach (var member in structType.members)
                             members.Add(($"{foundWord}.{member.name}", member.type));
                     }
-                    else if (TryGetDataPointer(foundType, out int dataId))
+                    else if(TryGetDataPointer(foundType, out int dataId))
                     {
                         members.Add((foundWord, TokenType.@int + dataId));
                     }
@@ -866,37 +866,36 @@ class Parser
     {
         ExpectKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
         var assignType = ExpectKeyword(loc, KeywordType.assignTypes, $"`:` or `=` after `{TypeNames(tokType)}`");
-        if (assignType is {operand: int op} && (KeywordType)op is {} keyword)
+        var keyword = (KeywordType)assignType.operand;
+        
+        if(CompileEval(out (TypeFrame frame, int value) eval, out int skip))
         {
-            if (CompileEval(out (TypeFrame frame, int value) eval, out int skip))
+            var endToken = NextIRTokens(skip);
+            Assert((tokType | TokenType.any).HasFlag(eval.frame.type), endToken.loc,
+                $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
+            TypedWord newVar = (word, eval.value, tokType);
+            if(keyword is KeywordType.colon)
             {
-                var endToken = NextIRTokens(skip);
-                Assert((tokType | TokenType.any).HasFlag(eval.frame.type), endToken.loc,
-                    $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.frame.type)}`");
-                TypedWord newVar = (word, eval.value, tokType);
-                if(keyword is KeywordType.colon)
-                {
-                    constList.Add(newVar);
-                }
-                else
-                {
-                    if (InsideProc) CurrentProc.localVars.Add(newVar);
-                    else varList.Add(newVar);
-                }
-                return true;
+                constList.Add(newVar);
             }
-
-            var foundType = eval.frame.type;
-            var declarationType = (keyword is KeywordType.colon ? "constant " : "variable ") + TypeNames(tokType);
-            var (foundDesc, foundName) = foundType switch
+            else
             {
-                TokenType.keyword => ("keyword", ((KeywordType)eval.value).ToString()),
-                TokenType.word    => ("word or intrinsic", wordList[eval.value]),
-                                _ => ("token", TypeNames(foundType))
-            };
-
-            Error(eval.frame.loc, $"Invalid {foundDesc} found on {declarationType} declaration: `{foundName}`");
+                if(InsideProc) CurrentProc.localVars.Add(newVar);
+                else varList.Add(newVar);
+            }
+            return true;
         }
+
+        var foundType = eval.frame.type;
+        var declarationType = (keyword is KeywordType.colon ? "constant " : "variable ") + TypeNames(tokType);
+        var (foundDesc, foundName) = foundType switch
+        {
+            TokenType.keyword => ("keyword", ((KeywordType)eval.value).ToString()),
+            TokenType.word    => ("word or intrinsic", wordList[eval.value]),
+                            _ => ("token", TypeNames(foundType))
+        };
+
+        Error(eval.frame.loc, $"Invalid {foundDesc} found on {declarationType} declaration: `{foundName}`");
         return false;
     }
 
@@ -912,17 +911,17 @@ class Parser
         {
             if(tok is {type: TokenType.keyword} && (KeywordType)tok.operand is {} typ)
             {
-                if (KeywordToDataType(typ) is {} key && key is not TokenType.keyword)
+                if(KeywordToDataType(typ) is {} key && key is not TokenType.keyword)
                 {
                     if(!foundArrow) ins.Add(key);
                     else outs.Add(key);
                 }
-                else if (typ is KeywordType.arrow)
+                else if(typ is KeywordType.arrow)
                 {
                     Assert(!foundArrow, tok.loc, "Duplicated `->` found on procedure definition");
                     foundArrow = true;
                 }
-                else if (typ is KeywordType.colon)
+                else if(typ is KeywordType.colon)
                 {
                     result = DefineProc(name, op, new(ins, outs));
                     return true;
@@ -934,10 +933,10 @@ class Parser
                 }
                 continue;
             }
-            else if (tok is {type: TokenType.word})
+            else if(tok is {type: TokenType.word})
             {
                 var foundWord = wordList[tok.operand];
-                if (TryGetTypeName(foundWord) is {} structType)
+                if(TryGetTypeName(foundWord, out StructType structType))
                 {
                     foreach (var member in structType.members)
                     {
@@ -945,7 +944,7 @@ class Parser
                         else outs.Add(member.type);
                     }
                 }
-                else if (TryGetDataPointer(foundWord, out int dataId))
+                else if(TryGetDataPointer(foundWord, out int dataId))
                 {
                     if(!foundArrow) ins.Add(TokenType.@int + dataId);
                     else outs.Add(TokenType.@int + dataId);
@@ -1021,18 +1020,18 @@ class Parser
         return PushBlock(op);
     }
 
-    static IRToken? ExpectToken(Loc loc, TokenType expected, string notFound)
+    static IRToken ExpectToken(Loc loc, TokenType expected, string notFound)
     {
         var sb = new StringBuilder();
         var errorLoc = loc;
-        if (NextIRToken() is {} token)
+        if(NextIRToken() is {} token)
         {
-            if (token.type.Equals(expected)) return token;
+            if(token.type.Equals(expected)) return token;
 
             sb.Append($"Expected {TypeNames(expected)} {notFound}, but found ");
             errorLoc = token.loc;
 
-            if (token.type.Equals(TokenType.word) && TryGetIntrinsic(wordList[token.operand], out IntrinsicType intrinsic))
+            if(token.type.Equals(TokenType.word) && TryGetIntrinsic(wordList[token.operand], out IntrinsicType intrinsic))
             {
                 sb.Append($"the Intrinsic `{intrinsic}`");
             }
@@ -1040,41 +1039,38 @@ class Parser
         }
         else sb.Append($"Expected {notFound}, but found nothing");
         Error(errorLoc, sb.ToString());
-        return null;
+        return default;
     }
 
-    static IRToken? ExpectKeyword(Loc loc, KeywordType expectedType, string notFound)
+    static IRToken ExpectKeyword(Loc loc, KeywordType expectedType, string notFound)
     {
-        var token = ExpectToken(loc, TokenType.keyword, notFound);
-        if (token is {} tok && !(expectedType.HasFlag((KeywordType)tok.operand)))
+        var tok = ExpectToken(loc, TokenType.keyword, notFound);
+        if(!(expectedType.HasFlag((KeywordType)tok.operand)))
         {
             Error(tok.loc, $"Expected keyword to be `{expectedType}`, but found `{(KeywordType)tok.operand}`");
-            return null;
+            return default;
         }
-        return token;
+        return tok;
     }
 
     static bool ParseMemory(string word, Loc loc)
     {
         ExpectKeyword(loc, KeywordType.colon, "`:` after `mem`");
-        if (ExpectToken(loc, TokenType.@int, "memory size after `:`") is {} valueToken)
+        var valueToken = ExpectToken(loc, TokenType.@int, "memory size after `:`");
+        ExpectKeyword(loc, KeywordType.end, "`end` after memory size");
+        var size = ((valueToken.operand + 3)/4)*4;
+        if(InsideProc)
         {
-            ExpectKeyword(loc, KeywordType.end, "`end` after memory size");
-            var size = ((valueToken.operand + 3)/4)*4;
-            if (InsideProc)
-            {
-                var proc = CurrentProc;
-                proc.procMemSize += size;
-                proc.localMemNames.Add((word, proc.procMemSize));
-            }
-            else
-            {
-                memList.Add((word, totalMemSize));
-                totalMemSize += size;
-            }
-            return true;
+            var proc = CurrentProc;
+            proc.procMemSize += size;
+            proc.localMemNames.Add((word, proc.procMemSize));
         }
-        return false;
+        else
+        {
+            memList.Add((word, totalMemSize));
+            totalMemSize += size;
+        }
+        return true;
     }
 
     static Op PushBlock(Op op)

@@ -24,16 +24,16 @@ class Tokenizer
 
         bool ReadLine()
         {
-            if (stream.ReadLine() is string line)
+            if(stream.ReadLine() is string line)
             {
                 lineNum++;
-                if (string.IsNullOrWhiteSpace(line)) return (ReadLine());
+                if(string.IsNullOrWhiteSpace(line)) return (ReadLine());
 
                 buffer = line.AsSpan();
                 colNum = 0;
                 parserPos = 0;
                 
-                if (!TrimLeft()) return ReadLine();
+                if(!TrimLeft()) return ReadLine();
                 return true;
             }
             buffer = ReadOnlySpan<char>.Empty;
@@ -54,18 +54,18 @@ class Tokenizer
 
         bool TrimLeft()
         {
-            if (parserPos > buffer.Length - 1 || buffer.Slice(parserPos).Trim().IsEmpty) return false;
+            if(parserPos > buffer.Length - 1 || buffer.Slice(parserPos).Trim().IsEmpty) return false;
 
             AdvanceByPredicate(pred => pred != ' ');
             colNum = parserPos;
-            if (buffer.Slice(parserPos).StartsWith("//")) return false;
+            if(buffer.Slice(parserPos).StartsWith("//")) return false;
 
             return true;
         }
 
         bool NextToken(out Token token)
         {
-            if (!TrimLeft() && !ReadLine())
+            if(!TrimLeft() && !ReadLine())
             {
                 token = default;
                 return false;
