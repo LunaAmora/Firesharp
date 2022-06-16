@@ -354,7 +354,10 @@ class Parser
         var index = vars.FindIndex(val => val.name.Equals(word));
         if (index >= 0)
         {
+            if (store) program.Add((OpType.intrinsic, -1 -(int)vars[index].type, loc));
+
             program.Add((pushType, index, loc));
+
             if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
             else if (pointer)
             {
@@ -394,14 +397,19 @@ class Parser
                 index = vars.FindIndex(val => $"{word}.{member.name}".Equals(val.name));
                 for (int i = 0; i < members.Count; i++)
                 {
+                    member = members[i];
                     var operand = index + (local == store ? i : -i);
                     // Info(loc, "{0} -> {1} = {2}", $"{word}.{member.name}", member.type, operand);
+
+                    if (store) program.Add((OpType.intrinsic, -1 -(int)member.type, loc));
+                    
                     program.Add((pushType, operand, loc));
+
                     if (store) program.Add((OpType.intrinsic, (int)IntrinsicType.store32, loc));
                     else
                     {
                         program.Add((OpType.intrinsic, (int)IntrinsicType.load32, loc));
-                        program.Add((OpType.intrinsic, DataTypeToCast(members[i].type), loc));
+                        program.Add((OpType.intrinsic, DataTypeToCast(member.type), loc));
                     }
                 }
             }

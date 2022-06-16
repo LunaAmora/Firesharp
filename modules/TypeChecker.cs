@@ -272,6 +272,10 @@ static class TypeChecker
                 dataStack.Push(TokenType.@int + (int)(cast - IntrinsicType.cast), op.loc);
                 // Info($"Casting {A.type} to {TypeNames(TokenType.@int + (int)(cast - IntrinsicType.cast))}");
             },
+            {} cast when cast <= (IntrinsicType)(-1) => () =>
+            {
+                dataStack.ExpectArity(1, (TokenType) (int)-(1 + (int)cast), op.loc);
+            },
             _ => (Action) (() => ErrorHere($"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`", op.loc))
         })(),
         _ => () => ErrorHere($"Op type not implemented in `TypeCheckOp` yet: `{op.type}`", op.loc)
@@ -346,12 +350,12 @@ static class TypeChecker
             var stk = stack.ElementAt(i);
             var contr = contract.ElementAt(i);
             var structOffset = contr - TokenType.data_ptr;
-            var anyPass = contr is not TokenType.any &&
-                    structOffset >= 0 &&
+            var anyPass = contr is TokenType.any ||
+                    (structOffset >= 0 &&
                     structList.Count > structOffset && 
-                    structList[structOffset].members.First().type is not TokenType.any;
-
-            if (anyPass && !contr.Equals(stk.type))
+                    structList[structOffset].members.First().type is TokenType.any);
+            if (anyPass) continue;
+            if (!contr.Equals(stk.type))
             {
                 Error(loc, $"Expected type `{TypeNames(contr)}`, but found `{TypeNames(stk.type)}`",
                     $"{stk.loc} [INFO] The type found was declared here");

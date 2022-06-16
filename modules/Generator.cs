@@ -133,7 +133,8 @@ static class Generator
             IntrinsicType.load32    => "  i32.load",
             IntrinsicType.store32   => "  call $swap i32.store",
             IntrinsicType.fd_write  => "  call $fd_write",
-            {} cast when cast >= IntrinsicType.cast => string.Empty,
+            {} cast when cast >= IntrinsicType.cast || cast < (IntrinsicType)0
+              => string.Empty,
             _ => ErrorHere($"Intrinsic type not implemented in `GenerateOp` yet: `{(IntrinsicType)op.operand}`", op.loc)
         },
         _ => ErrorHere($"Op type not implemented in `GenerateOp` yet: {op.type}", op.loc)
