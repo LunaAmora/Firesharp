@@ -86,7 +86,7 @@ static class TypeChecker
             dataStack.Push(B);
         },
         OpType.push_global_mem => () => dataStack.Push(TokenType.ptr, op.loc),
-        OpType.push_local_mem => () => dataStack.Push(TokenType.ptr, op.loc),
+        OpType.push_local_mem  => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.call => () => 
         {
             if(procList[op.operand] is var (_, (ins, outs)))
@@ -201,12 +201,7 @@ static class TypeChecker
         OpType.bind_stack => () =>
         {
             dataStack.ExpectArity(op.operand, ArityType.any, op.loc);
-            var elements = new List<TypeFrame>();
-            for (int i = 0; i < op.operand; i++)
-            {
-                elements.Add(dataStack.Pop());
-            }
-            elements.ForEach(type => bindStack.Push(type));
+            for (int i = 0; i < op.operand; i++) bindStack.Push(dataStack.Pop());
         },
         OpType.push_bind => () =>
         {
@@ -215,10 +210,7 @@ static class TypeChecker
         },
         OpType.pop_bind => () =>
         {
-            for (int i = 0; i < op.operand; i++)
-            {
-                bindStack.Pop();
-            }
+            for (int i = 0; i < op.operand; i++) bindStack.Pop();
         },
         OpType.equal => () =>
         {
@@ -429,10 +421,7 @@ static class TypeChecker
         public int stackCount = 0;
 
         public DataStack() {}
-        public DataStack(DataStack dataStack)
-        {
-            typeFrames = dataStack.typeFrames.Clone();
-        }
+        public DataStack(DataStack dataStack) => typeFrames = dataStack.typeFrames.Clone();
 
         public void Push(TokenType type, Loc loc) => Push((type, loc));
         public void Push(TypeFrame typeFrame)

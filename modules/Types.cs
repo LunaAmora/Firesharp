@@ -25,6 +25,8 @@ public record struct Loc(string file, int line, int col)
 public record struct IRToken(TokenType type, int operand, Loc loc)
 {
     public IRToken(TypedWord word, Loc loc) : this(word.type, word.value, loc){}
+    public static implicit operator IRToken((TokenType type, int operand, Loc loc) value)
+        => new IRToken(value.type, value.operand, value.loc);
 }
 
 public record Op(OpType type, Loc loc) 

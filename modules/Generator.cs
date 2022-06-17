@@ -43,10 +43,9 @@ static class Generator
             if(dataList.Count > 0 || varList.Count > 0)
             {
                 output.WriteLine("(data (i32.const 0)");
-                dataList.Where((a) => a.offset != -1).OrderBy((a) => a.offset).ToList().ForEach(data => 
-                {
-                    if(data.offset >= 0) output.WriteLine("  \"{0}\"", data.name);
-                });
+                dataList.Where(data => data.offset >= 0)
+                        .OrderBy(data => data.offset).ToList()
+                        .ForEach(data => output.WriteLine("  \"{0}\"", data.name));
 
                 var padding = 4 - (totalDataSize % 4);
                 if(padding < 4) output.WriteLine("  \"{0}\"", new String('0', padding).Replace("0", "\\00"));
