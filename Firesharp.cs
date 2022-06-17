@@ -1,11 +1,11 @@
-﻿global using static Firesharp.Firesharp;
+﻿global using static Firesharp.Cli.Cli;
 global using Firesharp.Types;
 global using System.Text;
 using CliFx;
 
 namespace Firesharp;
 
-static partial class Firesharp
+public class Firesharp
 {
     public static async Task<int> Main() =>
         await new CliApplicationBuilder()

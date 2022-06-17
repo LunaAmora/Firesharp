@@ -9,8 +9,8 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net6.0/Firesharp.dll",
-            "args": [],
+            "program": "${workspaceFolder}/bin/Debug/net6.0/linux-x64/Firesharp.dll",
+            "args": ["-com", "./src/test.fire"],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
             "stopAtEntry": false

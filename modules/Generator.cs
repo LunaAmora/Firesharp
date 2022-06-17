@@ -4,18 +4,9 @@ using static Parser;
 
 static class Generator
 {
-    public static async Task GenerateWasm(List<Op> program, string filepath)
+    public static void GenerateWasm(List<Op> program, string outPath)
     {
-        if(Path.GetDirectoryName(filepath) is not string dir)
-        {
-            Error(error: "Could not resolve file directory");
-            return;
-        }
-
-        string buildPath = Path.Combine(dir, "build");
-        Directory.CreateDirectory(buildPath);
-        string outPath = Path.Combine(buildPath, "out.wat");
-
+        Info(text: "Generating {0}", arg: outPath);
         using (var file     = new FileStream(outPath, FileMode.Create))
         using (var buffered = new BufferedStream(file))
         using (var output   = new StreamWriter(buffered))
@@ -65,12 +56,6 @@ static class Generator
                 output.WriteLine(")");
             }
         }
-        string outWasm = $"{buildPath}/out.wasm";
-
-        await CmdEcho("wat2wasm", outPath, "-o", outWasm);
-        // await CmdEcho("wasm-opt", "-Oz", "--enable-multivalue", outWasm, "-o", outWasm);
-        // await CmdEcho("wasm2wat", outWasm, "-o", outPath);
-        await CmdEcho("wasmtime", outWasm);
     }
     
     static void TryWriteLine(this StreamWriter writer, string text, string comment)
@@ -90,7 +75,7 @@ static class Generator
         OpType.push_local  => $"  i32.const {(CurrentProc.bindCount + 1 + op.operand) * 4 + CurrentProc.procMemSize} call $push_local",
         OpType.offset_load => $"  i32.const {op.operand} i32.add i32.load",
         OpType.offset      => $"  i32.const {op.operand} i32.add",
-        OpType.push_str  => $"  i32.const {dataList[op.operand].size}\n  i32.const {dataList[op.operand].offset}",
+        OpType.push_str  => $"  i32.const {dataList[op.operand].size} i32.const {dataList[op.operand].offset}",
         OpType.push_int  or
         OpType.push_ptr  or
         OpType.push_bool => $"  i32.const {op.operand}",
@@ -164,9 +149,9 @@ static class Generator
 
     static string BindValues(int bindNumber)
     {
-        var sb = new StringBuilder();
-
-        if(bindNumber > 0) sb.Append(" ");
+        if(bindNumber <= 0) return string.Empty;
+        
+        var sb = new StringBuilder(" ");
         for (int i = 0; i < bindNumber; i++)
         {
             sb.Append(" call $bind_local");
@@ -183,7 +168,6 @@ static class Generator
 
     static string EndProc(Op op)
     {
-        Assert(InsideProc, error: "Unreachable, parser error.");
         var proc = CurrentProc;
         ExitCurrentProc();
         if(proc.procMemSize + proc.localVars.Count > 0)
@@ -195,7 +179,6 @@ static class Generator
 
     static string PrepProc(int index)
     {
-        Assert(!InsideProc, error: "Unreachable, parser error.");
         var proc = procList[index];
         CurrentProc = proc;
         var count = proc.localVars.Count;
@@ -214,8 +197,7 @@ static class Generator
 
             for (int a = 0; a < count; a++)
             {
-                var value = proc.localVars[a].value;
-                if(value != 0)
+                if(proc.localVars[a].value is not 0 and int value)
                 {
                     var offset = proc.procMemSize + (a + 1) * 4;
                     sb.Append($"\n  i32.const {offset} call $push_local i32.const {value} i32.store");

@@ -6,53 +6,82 @@ using CliFx.Exceptions;
 using CliWrap;
 using CliFx;
 
-namespace Firesharp;
+namespace Firesharp.Cli;
 
 [Command("-com")]
 public class CompileCommand : ICommand
 {
     [CommandParameter(0, Description = "Compile a `.fire` file to WebAssembly.")]
     public FileInfo? InputFile { get; init; }
-    [CommandOption("debug", 'd', Description = "Add OpTypes information to output `.wat` file")]
-    public bool DebugMode { get; init; } = false;
+    [CommandOption("debug", 'd', Description = "Add OpTypes information to output `.wat` file.")]
+    public bool DebugMode { get; init; }
+    [CommandOption("silent", 's', Description = "Don't print any info about compilation phases.")]
+    public bool SilentMode { get; init; }
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
         FConsole = console;
         debug = DebugMode;
+        silent = SilentMode;
         if(InputFile is {})
         {
             Assert(InputFile.Extension.Equals(".fire"), error: "The input file name provided is not valid");
             Assert(InputFile.Exists, error: "Failed to find the provided file");
+
+            var watch = StartWatch();
+
             TryReadFile(InputFile);
             Parser.ParseTokens();
+            watch.TimeIt($"Compilation");
+
             TypeChecker.TypeCheck(Parser.program);
-            await Generator.GenerateWasm(Parser.program, InputFile.ToString());
+            watch.TimeIt($"Typechecking");
+
+            if(Path.GetDirectoryName(InputFile.ToString()) is not string dir)
+            {
+                Error(error: "Could not resolve file directory");
+                return;
+            }
+
+            var buildPath = Path.Combine(dir, "build");
+            if(!Directory.Exists(buildPath))
+                Directory.CreateDirectory(buildPath);
+            var outPath = Path.Combine(buildPath, "out.wat");
+            var outWasm = Path.Combine(buildPath, "out.wasm");
+
+            Generator.GenerateWasm(Parser.program, outPath);
+            watch.TimeIt($"Generation", false);
+            
+            await CmdEcho("wat2wasm", outPath, "-o", outWasm);
+            // await CmdEcho("wasm-opt", "-Oz", "--enable-multivalue", outWasm, "-o", outWasm);
+            // await CmdEcho("wasm2wat", outWasm, "-o", outPath);
+            await CmdEcho("wasmtime", outWasm);
         }
     }
 }
 
-static partial class Firesharp
+static class Cli
 {
     public static bool debug = false;
+    public static bool silent = false;
     static IConsole? _console;
 
     public static void TryReadRelative(Loc loc, string target)
     {
         Assert(target.EndsWith(".fire"), loc, $"The target include file is not valid: {target}");
-        var current = loc.file;
-        if(Path.GetDirectoryName(current) is {} dir &&
+        if(Path.GetDirectoryName(loc.file) is {} dir &&
            new FileInfo(Path.Combine(dir, target)) is {} tPath &&
            tPath.Exists)
         {
-            TryReadFile(tPath);
+            TryReadFile(tPath, false);
         }
         else Error(loc, $"Failed to find the target include file: {target}");
     }
 
-    public static void TryReadFile(FileInfo fileInfo)
+    public static void TryReadFile(FileInfo fileInfo, bool first = true)
     {
         var filePath = fileInfo.ToString();
+        Info(text: first ? "Compiling {0}" : "Including {0}", arg: filePath);
         try
         {
             using (var file = fileInfo.Open(FileMode.Open))
@@ -78,7 +107,7 @@ static partial class Firesharp
 
     public static async Task CmdEcho(string target, params string[] arg)
     {
-        var cmd = Cli.Wrap(target)
+        var cmd = CliWrap.Cli.Wrap(target)
             .WithValidation(CommandResultValidation.None)
             .WithArguments(arg) |
             (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
@@ -95,12 +124,14 @@ static partial class Firesharp
     
     public static void WritePrefix(string prefix, string format, params object?[] arg)
     {
+        if(silent) return;
         Write(prefix);
         WriteLine(format, arg);
     }
 
     public static void WritePrefix(string prefix, ConsoleColor color, string format, params object?[] arg)
     {
+        if(silent) return;
         FConsole.ForegroundColor = color;
         WritePrefix(prefix, format, arg);
         FConsole.ResetColor();
@@ -147,5 +178,19 @@ static partial class Firesharp
     {
         if(!cond) Error(loc, error);
         return cond;
+    }
+
+    public static Stopwatch StartWatch()
+    {
+        var watch = new System.Diagnostics.Stopwatch();
+        watch.Start();
+        return watch;
+    }
+
+    public static void TimeIt(this Stopwatch watch, string timeInfo, bool restart = true)
+    {
+        watch.Stop();
+        Info(text: $"{timeInfo} took: {watch.ElapsedMilliseconds} ms");
+        if(restart) watch.Restart();
     }
 }

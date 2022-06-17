@@ -855,7 +855,7 @@ static class Parser
             if(NextIRToken() is {} nameType)
             {
                 var errorText = "Expected struct member type but found";
-                if(nameType is {type: TokenType.word, operand: int typeIndex})
+                if(nameType is (TokenType.word, int typeIndex, _))
                 {
                     var foundType = wordList[typeIndex];
                     if(TryGetTypeName(foundType, out StructType structType))

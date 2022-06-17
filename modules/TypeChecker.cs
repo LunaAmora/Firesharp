@@ -383,8 +383,7 @@ static class TypeChecker
             $"{loc} [INFO] Actual types:   {ListTypes(actual)}");
     }
 
-    static string ListTypes(this DataStack types) => ListTypes(types.typeFrames.ToList(), false);
-    static string ListTypes(this DataStack types, bool verbose) => ListTypes(types.typeFrames.ToList(), verbose);
+    static string ListTypes(this DataStack types, bool verbose = false) => ListTypes(types.typeFrames.ToList(), verbose);
     public static string ListTypes(this IEnumerable<TypeFrame> types, bool verbose)
     {
         var typs = ListTypes(types.Reverse<TypeFrame>().Select(t => t.type).ToList());
