@@ -22,6 +22,10 @@ print : str :
   !string *string puts
 end
 
+println : str :
+  print "\n" print
+end
+
 trim-left : *str :
   dup 
   .*len  dec32

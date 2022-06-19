@@ -4,3 +4,6 @@ null  :: 0 #ptr end
 
 inc32 : *any : dup @ #int 1 + swap !32 end
 dec32 : *any : dup @ #int 1 - swap !32 end
+
+lor  : bool bool -> bool : #int swap #int or  #bool end
+land : bool bool -> bool : #int swap #int and #bool end

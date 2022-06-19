@@ -106,10 +106,14 @@ static class Parser
             "-" => IntrinsicType.minus,
             "*" => IntrinsicType.times,
             "%" => IntrinsicType.div,
-            ">" => IntrinsicType.greater,
-            "<" => IntrinsicType.lesser,
-            "@8" => IntrinsicType.load8,
-            "!8" => IntrinsicType.store8,
+            ">"  => IntrinsicType.greater,
+            ">=" => IntrinsicType.greater_e,
+            "<"  => IntrinsicType.lesser,
+            "<=" => IntrinsicType.lesser_e,
+            "or"  => IntrinsicType.or,
+            "and" => IntrinsicType.and,
+            "@8"  => IntrinsicType.load8,
+            "!8"  => IntrinsicType.store8,
             "@16" => IntrinsicType.load16,
             "!16" => IntrinsicType.store16,
             "@32" => IntrinsicType.load32,
@@ -210,7 +214,7 @@ static class Parser
         },
         KeywordType.end => PopBlock(loc, type) switch
         {
-            {type: OpType.if_start} => (OpType.end_if, loc),
+            {type: OpType.if_start} => (OpType.end_if, loc),  //TODO: Check for constants at the top of the stack, colapse/remove block if true
             {type: OpType.@else}    => (OpType.end_else, loc),
             {type: OpType.@do}      => (OpType.end_while, loc),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),

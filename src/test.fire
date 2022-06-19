@@ -1,13 +1,29 @@
 include "../lib/std.fire"
 
+zero : -> int : 0 end
+seven :: 7 end
+
+checkNumber : int :
+  dup 0 < if          "number is less than 0"
+  else dup zero = if  "number is 0" 
+  else dup 2 >= over 4 <= land if "number is between 2 and 4"
+  else dup 5 =  over 6 =  lor  if "number is 5 or 6"
+  else dup seven = if "number is 7"
+  else                "number is 1 or more than 7" 
+  end end end end end
+  println
+  drop
+end
+
 start ::
-  hello str := "Hello World!\n" end
-  *hello puts
-
-  6 while dup 0 > do
-    *hello trim-left
-    1 -
-  end drop
-
-  hello print
+  -420 checkNumber
+  0 checkNumber
+  1 checkNumber
+  2 checkNumber
+  3 checkNumber
+  4 checkNumber
+  5 checkNumber
+  6 checkNumber
+  7 checkNumber
+  69 checkNumber
 end

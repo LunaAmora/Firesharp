@@ -225,15 +225,25 @@ static class TypeChecker
         },
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
-            IntrinsicType.plus  or
+            IntrinsicType.plus or
             IntrinsicType.minus => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
                 dataStack.Push(dataStack.Pop().type, op.loc);
             },
+            IntrinsicType.or or
+            IntrinsicType.and => () =>
+            {
+                dataStack.ExpectArity(op.loc, TokenType.@int, TokenType.@int);
+                dataStack.Pop();
+                dataStack.Pop();
+                dataStack.Push(TokenType.@bool, op.loc);
+            },
+            IntrinsicType.lesser or
             IntrinsicType.greater or
-            IntrinsicType.lesser => () =>
+            IntrinsicType.lesser_e or
+            IntrinsicType.greater_e => () =>
             {
                 dataStack.ExpectArity(2, ArityType.same, op.loc);
                 dataStack.Pop();
@@ -420,7 +430,11 @@ static class TypeChecker
         public int stackCount = 0;
 
         public DataStack() {}
-        public DataStack(DataStack dataStack) => typeFrames = dataStack.typeFrames.Clone();
+        public DataStack(DataStack dataStack)
+        {
+            typeFrames = dataStack.typeFrames.Clone();
+            minCount = dataStack.minCount;
+        }
 
         public void Push(TokenType type, Loc loc) => Push((type, loc));
         public void Push(TypeFrame typeFrame)
