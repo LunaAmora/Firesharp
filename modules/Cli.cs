@@ -13,10 +13,20 @@ public class CompileCommand : ICommand
 {
     [CommandParameter(0, Description = "Compile a `.fire` file to WebAssembly.")]
     public FileInfo? InputFile { get; init; }
+    [CommandOption("run", 'r', Description = "Run the `.wasm` file with a runtime.")]
+    public bool Run { get; init; }
     [CommandOption("debug", 'd', Description = "Add OpTypes information to output `.wat` file.")]
     public bool DebugMode { get; init; }
+    [CommandOption("wat", 'w', Description = "Decompile the `.wasm` file into the `.wat`.")]
+    public bool Wat { get; init; }
     [CommandOption("silent", 's', Description = "Don't print any info about compilation phases.")]
     public bool SilentMode { get; init; }
+    [CommandOption("graph", 'g', Description = "Generate a `.svg` call graph of the compiled program. (Needs Graphviz)")]
+    public bool Graph { get; init; }
+    [CommandOption("opt", 'p', Description = "Optimize the `.wasm` file to reduce it's size. (Needs Binaryen)")]
+    public bool Opt { get; init; }
+    [CommandOption("runtime", 't', Description = "Sets the runtime to be used by the `-r` option.")]
+    public string Runtime { get; init; } = "wasmtime";
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
@@ -52,10 +62,18 @@ public class CompileCommand : ICommand
             Generator.GenerateWasm(Parser.program, outPath);
             watch.TimeIt($"Generation", false);
             
-            await CmdEcho("wat2wasm", outPath, "-o", outWasm);
-            // await CmdEcho("wasm-opt", "-Oz", "--enable-multivalue", outWasm, "-o", outWasm);
-            // await CmdEcho("wasm2wat", outWasm, "-o", outPath);
-            await CmdEcho("wasmtime", outWasm);
+            if(Graph)
+            {
+                var outGraph = Path.Combine(buildPath, "out.svg");
+
+                await CmdEcho("wat2wasm", "--debug-names", outPath, "-o", outWasm);
+                await CmdEcho("wasm-opt", new []{"-q", "--print-call-graph", "--enable-multivalue", outWasm},
+                              "dot", "-Tsvg", "-q", "-o", outGraph);
+            }
+            else    await CmdEcho("wat2wasm", outPath, "-o", outWasm);
+            if(Opt) await CmdEcho("wasm-opt", "-O4", "--enable-multivalue", outWasm, "-o", outWasm);
+            if(Wat) await CmdEcho("wasm2wat", outWasm, "-o", outPath);
+            if(Run) await CmdEcho(Runtime, outWasm);
         }
     }
 }
@@ -103,6 +121,21 @@ static class Cli
             return _console;
         }
         set => _console = value;
+    }
+
+    public static async Task CmdEcho(string target, string[] arg, string pipe, params string[] arg2)
+    {
+        var cmd = CliWrap.Cli.Wrap(target)
+            .WithValidation(CommandResultValidation.None)
+            .WithArguments(arg) |
+            CliWrap.Cli.Wrap(pipe)
+            .WithValidation(CommandResultValidation.None)
+            .WithArguments(arg2) |
+            (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
+        WritePrefix("[CMD] ", $"{target} {String.Join(" ", arg)}");
+        WritePrefix("[CMD] ", cmd.ToString());
+        var result = await cmd.ExecuteAsync();
+        Assert(result.ExitCode == 0, error: "External command error, please report this in the project's github!");
     }
 
     public static async Task CmdEcho(string target, params string[] arg)

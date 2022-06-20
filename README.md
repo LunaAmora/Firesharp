@@ -17,7 +17,7 @@ You will need to have the following:
 Then, you can compile the [test.fire](./src/test.fire) file with:
 
 ```console
-$ dotnet run -com src/test.fire
+$ dotnet run -com src/test.fire --run
 ... program logs ...
 number is less than 0
 number is 0 or nice

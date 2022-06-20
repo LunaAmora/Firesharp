@@ -462,3 +462,6 @@ $RECYCLE.BIN/
 # WASM files
 *.wasm
 *.wat
+
+# Graphs
+*.svg
