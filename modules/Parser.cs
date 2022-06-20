@@ -263,7 +263,7 @@ static class Parser
                         $"invalid, fix this error later"); // TODO: Better error 
                     
                     NextIRToken();
-                    return (OpType.end_case, op.operand, op.loc);
+                    return (OpType.end_case, proc.currentBlock--, op.loc);
                 }
             }
             else if(token is {type: TokenType.word, operand: int wIP} && wordList[wIP] is {} word)
@@ -329,13 +329,6 @@ static class Parser
         op.operand = current.Count() - 1;
         PushBlock(op);
         return null;
-    }
-
-    static Op EndCase(Op op)
-    {
-        var proc = CurrentProc;
-        proc.currentBlock -= 1;
-        return op;
     }
 
     static bool ExpectProc(TokenType type, Loc loc, string errorText)

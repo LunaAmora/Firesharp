@@ -130,14 +130,16 @@ static class Generator
     {
         var operand = op.operand;
         var proc = CurrentProc;
-        proc.currentBlock = operand;
+        proc.currentBlock++;
+        Assert(proc.currentBlock == operand, op.loc, "Unreachable, parser error");
+
         var block = proc.caseBlocks[operand];
         var sb = new StringBuilder($"  block $case|{operand}{BlockContract(op)}");
 
-        sb.Append($"\n  block $default|0 (param i32)");
+        sb.Append($"\n  block $default|{operand}{BlockContract(op, true)}");
 
         for (int i = block.Count -2 ; i >= 0; i--)
-            sb.Append($"\n  block $case{i}|0 (param i32)");
+            sb.Append($"\n  block $case{i}|{operand}{BlockContract(op, true)}");
 
         sb.Append("\n  call $dup");
 
@@ -152,7 +154,7 @@ static class Generator
         return sb.ToString();
     }
 
-    static string GenerateMatch(CaseOption option, int operand) => (option.type switch
+    static string GenerateMatch(CaseOption option, int operand) => option.type switch
     {
         CaseType.lesser => $"i32.const {option.value[0]} i32.lt_s",
         CaseType.equal  => $"i32.const {option.value[0]} i32.eq",
@@ -160,7 +162,7 @@ static class Generator
         CaseType.range  => MatchRanges(option),
         CaseType.@default =>  $"drop br $default|{operand} end",
         _ => ErrorHere($"CaseType not implemented in `GenerateMatch` yet: {option.type}")
-    });
+    };
 
     static string MatchRanges(CaseOption option)
     {
@@ -233,10 +235,10 @@ static class Generator
     static string CaseOption(int operand)
     {
         if(operand is 0) return string.Empty;
-        return EndCase();
+        return $"  br $case|{CurrentProc.currentBlock} end";
     }
 
-    static string EndCase() => $"  br $case|{CurrentProc.currentBlock} end";
+    static string EndCase() => $"  br $case|{CurrentProc.currentBlock--} end";
 
     static string UnpackStruct(int operand)
     {
@@ -301,6 +303,7 @@ static class Generator
         var proc = procList[index];
         CurrentProc = proc;
         var count = proc.localVars.Count;
+        proc.currentBlock = -1;
         
         StringBuilder sb = new StringBuilder();
         if(proc is var (name, (ins, outs)))
@@ -330,16 +333,16 @@ static class Generator
         return sb.ToString();
     }
 
-    static string BlockContract(Op op)
+    static string BlockContract(Op op, bool caseParams = false)
     {
         if(blockContacts.ContainsKey(op) && blockContacts[op] is {} contract)
         {
-            return BlockContract(contract);
+            return BlockContract(contract, caseParams);
         }
         return string.Empty;
     }
 
-    static string BlockContract((int ins, int outs) contract)
+    static string BlockContract((int ins, int outs) contract, bool caseParams = false)
     {
         var sb = new StringBuilder();
         if(contract.ins > 0)
@@ -348,7 +351,13 @@ static class Generator
             sb.Insert(sb.Length, " i32", contract.ins);
             sb.Append(")");
         }
-        if(contract.outs > 0)
+        if(caseParams && contract.ins > 1)
+        {
+            sb.Append(" (result");
+            sb.Insert(sb.Length, " i32", contract.ins - 1);
+            sb.Append(")");
+        }
+        else if(contract.outs > 0)
         {
             sb.Append(" (result");
             sb.Insert(sb.Length, " i32", contract.outs);
