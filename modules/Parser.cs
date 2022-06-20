@@ -201,7 +201,8 @@ static class Parser
         KeywordType.@do    => PopBlock(loc, type) switch
         {
             {type: OpType.@while} => PushBlock((OpType.@do, loc)),
-            {} op => (Op?)Error(loc, $"`do` can only come after an `while` block, but found a `{op.type}` block instead`",
+            {type: OpType.case_match} op => PushBlock((OpType.case_option, op.operand, loc)),
+            {} op => (Op?)Error(loc, $"`do` can only come in a `while` or `case` block, but found a `{op.type}` block instead`",
                 $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.let   => PushBlock(ParseBindings((OpType.bind_stack, loc))),
@@ -209,15 +210,15 @@ static class Parser
         KeywordType.colon => PopBlock(loc, type) switch
         {
             {type: OpType.case_start} => ParseCaseMatch((OpType.case_match, loc)),
-            {type: OpType.case_match} op => PushBlock((OpType.case_option, op.operand, loc)),
-            {} op => (Op?)Error(loc, $"`:` can be used on word definitions or inside a `case` block, but found a `{op.type}` block instead`",
+            {} op => (Op?)Error(loc, $"`:` can be used on word or `case` block definition, but found a `{op.type}` block instead`",
                 $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.@if   => PushBlock((OpType.if_start, loc)),
         KeywordType.@else => PopBlock(loc, type) switch
         {
             {type: OpType.if_start} => PushBlock((OpType.@else, loc)),
-            {} op => (Op?)Error(loc, $"`else` can only come after an `if` block, but found a `{op.type}` block instead`",
+            {type: OpType.case_option} => ParseCaseMatch((OpType.case_match, loc)),
+            {} op => (Op?)Error(loc, $"`else` can only come in a `if` or `case` block, but found a `{op.type}` block instead`",
                 $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.end => PopBlock(loc, type) switch
@@ -225,9 +226,9 @@ static class Parser
             {type: OpType.if_start} => (OpType.end_if, loc),  //TODO: Check for constants at the top of the stack, colapse/remove block if true
             {type: OpType.@else}    => (OpType.end_else, loc),
             {type: OpType.@do}      => (OpType.end_while, loc),
+            {type: OpType.case_option} => EndCase((OpType.end_case, loc)),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
-            {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
-            {type: OpType.case_option} => ParseCaseMatch((OpType.case_match, loc)),
+            {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),
             {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block",
                 $"{op.loc} [INFO] The found block started here")
         },
@@ -244,6 +245,13 @@ static class Parser
         return PushBlock(PushBlock(op));
     }
 
+    private static Op EndCase(Op op)
+    {
+        op.operand = CurrentProc.currentBlock--;
+        Assert(PopBlock(op.loc, KeywordType.end).type is OpType.case_start, op.loc, $"Unreachable, parser error");
+        return op;
+    }
+
     static Op? ParseCaseMatch(Op op)
     {
         CaseType caseType = CaseType.none;
@@ -253,20 +261,8 @@ static class Parser
         while (i < IRTokens.Count)
         {
             IRToken token = IRTokenAt(i++);
-            if(token is {type: TokenType.keyword, operand: int tokOp} && (KeywordType)tokOp is {} key)
-            {
-                if(key is KeywordType.colon) break;
-                if(key is KeywordType.end)
-                {
-                    if(i is not 1) InvalidToken(token, "match block condition");
-                    Assert(PopBlock(token.loc, key).type is OpType.case_start, token.loc,
-                        $"invalid, fix this error later"); // TODO: Better error 
-                    
-                    NextIRToken();
-                    return (OpType.end_case, proc.currentBlock--, op.loc);
-                }
-            }
-            else if(token is {type: TokenType.word, operand: int wIP} && wordList[wIP] is {} word)
+            if(token.type is TokenType.keyword && (KeywordType)token.operand is KeywordType.@do) break;
+            else if(token.type is TokenType.word && wordList[token.operand] is {} word)
             {
                 if(word.Equals("_"))
                 {
