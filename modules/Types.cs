@@ -208,6 +208,7 @@ public enum CaseType
     none,
     equal,
     match,
+    range,
     lesser,
     greater,
     @default,

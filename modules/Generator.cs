@@ -137,9 +137,7 @@ static class Generator
         sb.Append($"\n  block $default|0 (param i32)");
 
         for (int i = block.Count -2 ; i >= 0; i--)
-        {
             sb.Append($"\n  block $case{i}|0 (param i32)");
-        }
 
         sb.Append("\n  call $dup");
 
@@ -159,9 +157,51 @@ static class Generator
         CaseType.lesser => $"i32.const {option.value[0]} i32.lt_s",
         CaseType.equal  => $"i32.const {option.value[0]} i32.eq",
         CaseType.match  => MatchMultiValues(option),
+        CaseType.range  => MatchRanges(option),
         CaseType.@default =>  $"drop br $default|{operand} end",
         _ => ErrorHere($"CaseType not implemented in `GenerateMatch` yet: {option.type}")
     });
+
+    static string MatchRanges(CaseOption option)
+    {
+        var count = option.value.Count();
+        var sb = new StringBuilder();
+        (int start, int end) range;
+
+        if(count <= 2)
+        {
+            range = (option.value[0], option.value[1]);
+            sb.Append("call $dup");
+            if(range.start != range.end)
+            {
+                sb.Append($" i32.const {range.start} i32.ge_s");
+                sb.Append("\n  call $over");
+                sb.Append($" i32.const {range.end} i32.le_s");
+                sb.Append(" i32.and");
+            }
+            else sb.Append($" i32.const {range.start} i32.eq");
+            return sb.ToString();
+        }
+        
+        sb.Append("call $bind_local");
+        for (int i = 0; i < count - 1; i += 2)
+        {
+            range = (option.value[i], option.value[i+1]);
+            sb.Append($"\n  i32.const 4 call $push_local i32.load");
+
+            if(range.start != range.end)
+            {
+                sb.Append($"\n  call $dup  i32.const {range.start} i32.ge_s");
+                sb.Append($"\n  call $swap i32.const {range.end} i32.le_s");
+                sb.Append(" i32.and");
+            }
+            else sb.Append($"\n  i32.const {range.start} i32.eq");
+
+            if(i is not 0) sb.Append(" i32.or");
+        }
+        sb.Append("\n  i32.const 4 call $free_local");
+        return sb.ToString();
+    }
 
     static string MatchMultiValues(CaseOption option)
     {

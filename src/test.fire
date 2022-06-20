@@ -1,12 +1,11 @@
 include "../lib/std.fire"
 
 checkNumber : int :
-  case : 0 < :  "number is less than 0"
-    end 0 :     "number is 0" 
-    end 2 3 4 : "number is between 2 and 4" 
-    end 5 6 :   "number is 5 or 6"
-    end 7 :     "number is 7"
-    end _ :     "number is 1 or more than 7" end
+  case : 0 < : "number is less than 0"
+    end 0 69..420 : "number is 0 or nice" 
+    end 2..6 : "number is between 2 and 6"
+    end 7 :    "number is 7"
+    end _ :    "number is 1 or more than 7 and not nice" end
   end println
 end
 
@@ -16,9 +15,9 @@ start ::
   1 checkNumber
   2 checkNumber
   3 checkNumber
-  4 checkNumber
   5 checkNumber
-  6 checkNumber
   7 checkNumber
   69 checkNumber
+  420 checkNumber
+  500 checkNumber
 end

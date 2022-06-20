@@ -273,6 +273,30 @@ static class Parser
                     caseType = CaseType.@default;
                     continue;
                 }
+                if(TryParseRange(word, token.loc, out(int start, int end) range))
+                {
+                    if(caseType is CaseType.none or CaseType.range)
+                    {
+                        caseType = CaseType.range;
+                        optionMatch.Add(range.start);
+                        optionMatch.Add(range.end);
+                        continue;
+                    }
+                    if(caseType is CaseType.equal or CaseType.match)
+                    {
+                        caseType = CaseType.range;
+                        var values = optionMatch.ToArray();
+                        optionMatch.Clear();
+                        for (int j = 0; j < values.Count(); j++)
+                        {                    
+                            optionMatch.Add(values[j]);
+                            optionMatch.Add(values[j]);
+                        }
+                        optionMatch.Add(range.start);
+                        optionMatch.Add(range.end);
+                        continue;
+                    }
+                }
                 
                 if(TryGetIntrinsic(word, out IntrinsicType intr))
                 {
@@ -287,14 +311,11 @@ static class Parser
             }
             else if(token.type is TokenType.@int)
             {
-                if(caseType is CaseType.none)
-                {
-                    caseType = CaseType.equal;
-                }
-                else if(caseType is CaseType.equal)
-                {
-                    caseType = CaseType.match;
-                }
+                if     (caseType is CaseType.none)  caseType = CaseType.equal;
+                else if(caseType is CaseType.equal) caseType = CaseType.match;
+                else if(caseType is CaseType.range) optionMatch.Add(token.operand);
+                else ErrorHere("Not implemented case", token.loc);
+
                 optionMatch.Add(token.operand);
                 continue;
             }
@@ -570,6 +591,23 @@ static class Parser
             return sucess;
         }
         typePtr = (TokenType)(-1);
+        return false;
+    }
+
+    static bool TryParseRange(string word, Loc loc, out (int start, int end) range)
+    {
+        if(word.Contains(".."))
+        {
+            (bool sucess, int val)[] parts = 
+                word.Split("..")
+                .Select(part => (Int32.TryParse(part, out int a), a))
+                .ToArray();
+            var success = parts.Count() is 2 && parts[0].sucess && parts[1].sucess;
+            range = (parts[0].val, parts[1].val);
+            Assert(success && range.start <= range.end, loc, "Invalid range declaration");
+            return true;
+        }
+        range = default;
         return false;
     }
 
