@@ -1,18 +1,13 @@
 include "../lib/std.fire"
 
-zero : -> int : 0 end
-seven :: 7 end
-
 checkNumber : int :
-  dup 0 < if          "number is less than 0"
-  else dup zero = if  "number is 0" 
-  else dup 2 >= over 4 <= land if "number is between 2 and 4"
-  else dup 5 =  over 6 =  lor  if "number is 5 or 6"
-  else dup seven = if "number is 7"
-  else                "number is 1 or more than 7" 
-  end end end end end
-  println
-  drop
+  case : 0 < :  "number is less than 0"
+    end 0 :     "number is 0" 
+    end 2 3 4 : "number is between 2 and 4" 
+    end 5 6 :   "number is 5 or 6"
+    end 7 :     "number is 7"
+    end _ :     "number is 1 or more than 7" end
+  end println
 end
 
 start ::

@@ -205,6 +205,14 @@ static class Parser
                 $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.let   => PushBlock(ParseBindings((OpType.bind_stack, loc))),
+        KeywordType.@case => StartCase((OpType.case_start, loc)),
+        KeywordType.colon => PopBlock(loc, type) switch
+        {
+            {type: OpType.case_start} => ParseCaseMatch((OpType.case_match, loc)),
+            {type: OpType.case_match} op => PushBlock((OpType.case_option, op.operand, loc)),
+            {} op => (Op?)Error(loc, $"`:` can be used on word definitions or inside a `case` block, but found a `{op.type}` block instead`",
+                $"{op.loc} [INFO] The found block started here")
+        },
         KeywordType.@if   => PushBlock((OpType.if_start, loc)),
         KeywordType.@else => PopBlock(loc, type) switch
         {
@@ -219,11 +227,95 @@ static class Parser
             {type: OpType.@do}      => (OpType.end_while, loc),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
             {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),  
-            {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block")
+            {type: OpType.case_option} => ParseCaseMatch((OpType.case_match, loc)),
+            {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block",
+                $"{op.loc} [INFO] The found block started here")
         },
         KeywordType.include => IncludeFile(loc),
         _ => (Op?)ErrorHere($"Keyword type not implemented in `DefineOp` yet: {type}", loc)
     };
+
+    static Op StartCase(Op op)
+    {
+        var proc = CurrentProc;
+        proc.caseBlocks.Add(new());
+        op.operand = proc.caseBlocks.Count() - 1;
+        proc.currentBlock += 1;
+        return PushBlock(PushBlock(op));
+    }
+
+    static Op? ParseCaseMatch(Op op)
+    {
+        CaseType caseType = CaseType.none;
+        List<int> optionMatch = new();
+        var proc = CurrentProc;
+        int i = 0;
+        while (i < IRTokens.Count)
+        {
+            IRToken token = IRTokenAt(i++);
+            if(token is {type: TokenType.keyword, operand: int tokOp} && (KeywordType)tokOp is {} key)
+            {
+                if(key is KeywordType.colon) break;
+                if(key is KeywordType.end)
+                {
+                    if(i is not 1) InvalidToken(token, "match block condition");
+                    Assert(PopBlock(token.loc, key).type is OpType.case_start, token.loc,
+                        $"invalid, fix this error later"); // TODO: Better error 
+                    
+                    NextIRToken();
+                    return (OpType.end_case, op.operand, op.loc);
+                }
+            }
+            else if(token is {type: TokenType.word, operand: int wIP} && wordList[wIP] is {} word)
+            {
+                if(word.Equals("_"))
+                {
+                    caseType = CaseType.@default;
+                    continue;
+                }
+                
+                if(TryGetIntrinsic(word, out IntrinsicType intr))
+                {
+                    caseType = intr switch
+                    {
+                        IntrinsicType.lesser => CaseType.lesser,
+                        _ => CaseType.none,
+                    };
+
+                    if(caseType is not CaseType.none) continue;
+                }
+            }
+            else if(token.type is TokenType.@int)
+            {
+                if(caseType is CaseType.none)
+                {
+                    caseType = CaseType.equal;
+                }
+                else if(caseType is CaseType.equal)
+                {
+                    caseType = CaseType.match;
+                }
+                optionMatch.Add(token.operand);
+                continue;
+            }
+
+            InvalidToken(token, "case declaration");
+        }
+
+        NextIRTokens(i-1);
+        var current = proc.caseBlocks[proc.currentBlock];
+        current.Add((caseType, optionMatch.ToArray()));
+        op.operand = current.Count() - 1;
+        PushBlock(op);
+        return null;
+    }
+
+    static Op EndCase(Op op)
+    {
+        var proc = CurrentProc;
+        proc.currentBlock -= 1;
+        return op;
+    }
 
     static bool ExpectProc(TokenType type, Loc loc, string errorText)
         => !Assert(type is TokenType.keyword or TokenType.word || InsideProc, loc, errorText);
@@ -532,7 +624,7 @@ static class Parser
                         }
                     }
                 }
-                InvalidToken((token.type, token.operand, token.loc), "context declaration");
+                InvalidToken(token, "context declaration");
                 return false;
             }
             

@@ -138,6 +138,7 @@ class Tokenizer
             "let"  => KeywordType.let,
             "do"   => KeywordType.@do,
             "@"    => KeywordType.at,
+            "case" => KeywordType.@case,
             "while"  => KeywordType.@while,
             "struct" => KeywordType.@struct,
             "include" => KeywordType.include,

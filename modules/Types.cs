@@ -7,6 +7,14 @@ public record Proc(string name, Contract contract)
     public List<string> bindings = new();
     public int procMemSize = 0;
     public int bindCount = 0;
+    public List<List<CaseOption>> caseBlocks = new();
+    public int currentBlock = -1;
+}
+
+public record struct CaseOption(CaseType type, int[] value)
+{
+    public static implicit operator CaseOption((CaseType type, int[] value) value)
+        => new CaseOption(value.type, value.value);
 }
 
 public record struct Contract(List<TokenType> ins, List<TokenType> outs)
@@ -139,6 +147,10 @@ public enum OpType
     end_while,
     unpack,
     expectType,
+    case_start,
+    case_match,
+    case_option,
+    end_case,
 }
 
 public enum IntrinsicType
@@ -186,6 +198,17 @@ public enum KeywordType
     @do     = 1 << 16,
     at      = 1 << 17,
     include = 1 << 18,
+    @case   = 1 << 19,
     wordTypes = proc | mem | @struct,
     assignTypes = equal | colon,
+}
+
+public enum CaseType
+{
+    none,
+    equal,
+    match,
+    lesser,
+    greater,
+    @default,
 }

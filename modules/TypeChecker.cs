@@ -219,6 +219,46 @@ static class TypeChecker
             dataStack.Pop();
             dataStack.Push(TokenType.@bool, op.loc);
         },
+        OpType.case_start => () =>
+        {
+            dataStack.ExpectArity(1, TokenType.@int, op.loc);
+            dataStack.Pop();
+            blockStack.Push((dataStack, op));
+            dataStack = new(dataStack);
+        },
+        OpType.case_option => () =>
+        {
+            if(op.operand is 0) return;
+            var (oldStack, startOp) = blockStack.ElementAt(op.operand-1);
+            blockStack.Push((dataStack, startOp));
+            dataStack = new(oldStack);
+        },
+        OpType.end_case => () =>
+        {
+            var proc = CurrentProc;
+            var block = proc.caseBlocks[op.operand];
+            int ins = dataStack.minCount;
+            int outs = dataStack.stackCount;
+            Op startOp = blockStack.Peek().op;
+
+            for (int i = 0; i < block.Count - 1; i++)
+            {
+                var expected = blockStack.Pop().stack;
+
+                ExpectStackArity(expected, dataStack, op.loc, 
+                "All branches of a case block must produce the same types of the arguments on the data stack");
+
+                ins = Math.Min(ins, expected.minCount);
+                outs = Math.Max(outs, expected.stackCount);
+            }
+            outs -= ins;
+
+            blockContacts.Add(startOp, (1 - ins, outs));
+
+            var oldStack = blockStack.Pop().stack;
+            dataStack.minCount   = oldStack.stackCount + ins;
+            dataStack.stackCount = oldStack.stackCount;
+        },
         OpType.expectType => () =>
         {
             dataStack.ExpectArity(1, (TokenType)(op.operand), op.loc);
@@ -325,6 +365,8 @@ static class TypeChecker
 
     static bool ExpectArity(this DataStack stack, int arityN, TokenType type, Loc loc)
     {
+        Assert(stack.Count() >= arityN, loc, "Stack has less elements than expected",
+        $"{loc} [INFO] Expected `{arityN}` elements, but found `{stack.Count()}`");
         for (int i = 0; i < arityN; i++)
         {
             if(!ExpectType(stack.ElementAt(i), type, loc)) return false;

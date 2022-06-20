@@ -95,10 +95,13 @@ static class Generator
         OpType.@while    => $"  loop $while|{op.operand}{BlockContract(op)}",
         OpType.@do       => $"  if{BlockContract(op)}",
         OpType.end_while => $"  br $while|{op.operand} end end",
-        OpType.end_proc  => $"{EndProc(op)})",
+        OpType.end_proc  => EndProc(op),
         OpType.bind_stack => BindValues(op.operand),
         OpType.push_bind  => $"  i32.const {(op.operand + 1) * 4} call $push_local i32.load",
         OpType.pop_bind   => PopBind(op.operand),
+        OpType.case_start => StartCase(op),
+        OpType.case_option => CaseOption(op.operand),
+        OpType.end_case    => EndCase(),
         OpType.intrinsic => (IntrinsicType)op.operand switch
         {
             IntrinsicType.plus      => "  i32.add",
@@ -122,6 +125,78 @@ static class Generator
         OpType.expectType => string.Empty,
         _ => ErrorHere($"Op type not implemented in `GenerateOp` yet: {op.type}", op.loc)
     };
+    
+    static string StartCase(Op op)
+    {
+        var operand = op.operand;
+        var proc = CurrentProc;
+        proc.currentBlock = operand;
+        var block = proc.caseBlocks[operand];
+        var sb = new StringBuilder($"  block $case|{operand}{BlockContract(op)}");
+
+        sb.Append($"\n  block $default|0 (param i32)");
+
+        for (int i = block.Count -2 ; i >= 0; i--)
+        {
+            sb.Append($"\n  block $case{i}|0 (param i32)");
+        }
+
+        sb.Append("\n  call $dup");
+
+        for (int i = 0; i < block.Count; i++)
+        {
+            var match = block[i];
+            sb.Append($"\n  {GenerateMatch(match, operand)}");
+            if(match.type is not CaseType.@default)
+                sb.Append($"\n  br_if $case{i}|{operand} call $dup");
+        }
+
+        return sb.ToString();
+    }
+
+    static string GenerateMatch(CaseOption option, int operand) => (option.type switch
+    {
+        CaseType.lesser => $"i32.const {option.value[0]} i32.lt_s",
+        CaseType.equal  => $"i32.const {option.value[0]} i32.eq",
+        CaseType.match  => MatchMultiValues(option),
+        CaseType.@default =>  $"drop br $default|{operand} end",
+        _ => ErrorHere($"CaseType not implemented in `GenerateMatch` yet: {option.type}")
+    });
+
+    static string MatchMultiValues(CaseOption option)
+    {
+        var count = option.value.Count();
+
+        var sb = new StringBuilder();
+        if(count > 2)
+        {
+            sb.Append("call $bind_local");
+            option.value.ToList().ForEach(match =>
+            {
+                sb.Append($"\n  i32.const 4 call $push_local i32.load");
+                sb.Append($" i32.const {match} i32.eq");
+            });
+            for (int i = 0; i < count-1; i++) sb.Append(" i32.or");
+            sb.Append("\n  i32.const 4 call $free_local");
+        }
+        else
+        {
+            sb.Append("call $dup");
+            sb.Append( $" i32.const {option.value[0]} i32.eq");
+            sb.Append("\n  call $over");
+            sb.Append( $" i32.const {option.value[1]} i32.eq");
+            sb.Append(" i32.or");
+        }
+        return sb.ToString();
+    }
+
+    static string CaseOption(int operand)
+    {
+        if(operand is 0) return string.Empty;
+        return EndCase();
+    }
+
+    static string EndCase() => $"  br $case|{CurrentProc.currentBlock} end";
 
     static string UnpackStruct(int operand)
     {
@@ -176,9 +251,9 @@ static class Generator
         ExitCurrentProc();
         if(proc.procMemSize + proc.localVars.Count > 0)
         {
-            return $"  i32.const {proc.procMemSize + (proc.localVars.Count * 4)} call $free_local\n";
+            return $"  i32.const {proc.procMemSize + (proc.localVars.Count * 4)} call $free_local\n)";
         }
-        return string.Empty;
+        return ")";
     }
 
     static string PrepProc(int index)
