@@ -138,10 +138,9 @@ static class Cli
             WritePrefix("[CMD] ", cmd.ToString());
             await cmd.ExecuteAsync();
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Error(default, "External command error, please report this in the project's github!",
-            e.Message);
+            Error(error: "External command error, please report this in the project's github!");
         }
     }
 
@@ -155,10 +154,9 @@ static class Cli
             WritePrefix("[CMD] ", cmd.ToString());
             await cmd.ExecuteAsync();
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Error(default, "External command error, please report this in the project's github!",
-            e.Message);
+            Error(error: "External command error, please report this in the project's github!");
         }
     }
 

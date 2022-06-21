@@ -247,7 +247,12 @@ static class Parser
 
     private static Op EndCase(Op op)
     {
-        op.operand = CurrentProc.currentBlock--;
+        var proc = CurrentProc;
+        Assert(proc.caseBlocks[proc.currentBlock]
+               .Last().type is CaseType.@default,
+               op.loc,
+               "Expected last match of a `case` block to be `_`");
+        op.operand = proc.currentBlock--;
         Assert(PopBlock(op.loc, KeywordType.end).type is OpType.case_start, op.loc, $"Unreachable, parser error");
         return op;
     }
@@ -302,10 +307,17 @@ static class Parser
                         _ => CaseType.none,
                     };
 
-                    if(caseType is not CaseType.none) continue;
+                    if(caseType is CaseType.none)
+                        ErrorHere($"IntrinsicType not implemented in `ParseCaseMatch` yet: {intr}");
+                    i++;
+                    break;
                 }
+
+                if(TryGetConstName(word, out TypedWord res) && res.type is TokenType.@int)
+                    token = new (res, token.loc);
             }
-            else if(token.type is TokenType.@int)
+            
+            if(token.type is TokenType.@int)
             {
                 if     (caseType is CaseType.none)  caseType = CaseType.equal;
                 else if(caseType is CaseType.equal) caseType = CaseType.match;
@@ -589,10 +601,16 @@ static class Parser
         {
             (bool sucess, int val)[] parts = 
                 word.Split("..")
-                .Select(part => (Int32.TryParse(part, out int a), a))
+                .Select(part => 
+                {
+                    if (Int32.TryParse(part, out int a)) return (true, a);
+                    else if(TryGetConstName(part, out TypedWord res) &&
+                            res.type is TokenType.@int)  return (true, res.value);
+                    return (false, 0);
+                })
                 .ToArray();
             var success = parts.Count() is 2 && parts[0].sucess && parts[1].sucess;
-            range = (parts[0].val, parts[1].val);
+            range = (success) ? (parts[0].val, parts[1].val) : default;
             Assert(success && range.start <= range.end, loc, "Invalid range declaration");
             return true;
         }

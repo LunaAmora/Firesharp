@@ -351,11 +351,14 @@ static class Generator
             sb.Insert(sb.Length, " i32", contract.ins);
             sb.Append(")");
         }
-        if(caseParams && contract.ins > 1)
+        if(caseParams)
         {
-            sb.Append(" (result");
-            sb.Insert(sb.Length, " i32", contract.ins - 1);
-            sb.Append(")");
+            if(contract.ins > 1)
+            {
+                sb.Append(" (result");
+                sb.Insert(sb.Length, " i32", contract.ins - 1);
+                sb.Append(")");
+            }
         }
         else if(contract.outs > 0)
         {
