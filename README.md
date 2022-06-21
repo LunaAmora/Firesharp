@@ -42,7 +42,7 @@ COMMANDS:
     -com <inputfile> [options] Compile a `.fire` file to WebAssembly.
         -r|--run          Run the `.wasm` file with a runtime.
         -d|--debug        Add OpTypes information to output `.wat` file.
-        -w|--wat          Decompile the `.wasm` file into the `.wat`.
+        -w|--wat          Decompile the `.wasm` file back into the `.wat`.
         -s|--silent       Don't print any info about compilation phases.
         -g|--graph        Generate a `.svg` call graph of the compiled program. (Needs Graphviz)
         -p|--opt          Optimize the `.wasm` file to reduce it's size. (Needs Binaryen)

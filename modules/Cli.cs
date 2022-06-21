@@ -18,7 +18,7 @@ public class CompileCommand : ICommand
     public bool Run { get; init; }
     [CommandOption("debug", 'd', Description = "Add OpTypes information to output `.wat` file.")]
     public bool DebugMode { get; init; }
-    [CommandOption("wat", 'w', Description = "Decompile the `.wasm` file into the `.wat`.")]
+    [CommandOption("wat", 'w', Description = "Decompile the `.wasm` file back into the `.wat`.")]
     public bool Wat { get; init; }
     [CommandOption("silent", 's', Description = "Don't print any info about compilation phases.")]
     public bool SilentMode { get; init; }
