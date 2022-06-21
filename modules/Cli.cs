@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using CliFx.Infrastructure;
+using CliWrap.Exceptions;
 using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliWrap;
@@ -125,29 +126,50 @@ static class Cli
 
     public static async Task CmdEcho(string target, string[] arg, string pipe, params string[] arg2)
     {
-        var cmd = CliWrap.Cli.Wrap(target)
-            .WithValidation(CommandResultValidation.None)
-            .WithArguments(arg) |
-            CliWrap.Cli.Wrap(pipe)
-            .WithValidation(CommandResultValidation.None)
-            .WithArguments(arg2) |
-            (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
-        WritePrefix("[CMD] ", $"{target} {String.Join(" ", arg)}");
-        WritePrefix("[CMD] ", cmd.ToString());
-        var result = await cmd.ExecuteAsync();
-        Assert(result.ExitCode == 0, error: "External command error, please report this in the project's github!");
+        try
+        {
+            var cmd = CliWrap.Cli.Wrap(target)
+                .WithArguments(arg) |
+                (WriteLine, ErrorWriteLine) |
+                CliWrap.Cli.Wrap(pipe)
+                .WithArguments(arg2) |
+                (WriteLine, ErrorWriteLine);
+            WritePrefix("[CMD] ", $"{target} {String.Join(" ", arg)}");
+            WritePrefix("[CMD] ", cmd.ToString());
+            await cmd.ExecuteAsync();
+        }
+        catch (Exception e)
+        {
+            Error(default, "External command error, please report this in the project's github!",
+            e.Message);
+        }
     }
 
     public static async Task CmdEcho(string target, params string[] arg)
     {
-        var cmd = CliWrap.Cli.Wrap(target)
-            .WithValidation(CommandResultValidation.None)
-            .WithArguments(arg) |
-            (FConsole.Output.WriteLine, FConsole.Error.WriteLine);
-        WritePrefix("[CMD] ", cmd.ToString());
-        var result = await cmd.ExecuteAsync();
-        Assert(result.ExitCode == 0, error: "External command error, please report this in the project's github!");
+        try
+        {
+            var cmd = CliWrap.Cli.Wrap(target)
+                .WithArguments(arg) |
+                (WriteLine, ErrorWriteLine);
+            WritePrefix("[CMD] ", cmd.ToString());
+            await cmd.ExecuteAsync();
+        }
+        catch (Exception e)
+        {
+            Error(default, "External command error, please report this in the project's github!",
+            e.Message);
+        }
     }
+
+    public static void ErrorWriteLine(string error)
+    {
+        FConsole.ForegroundColor = ConsoleColor.Red;
+        FConsole.Error.WriteLine(error);
+    }
+
+    public static void WriteLine(string text)
+        => FConsole.Output.WriteLine(text);
 
     public static void Write(string format, params object?[] arg)
         => FConsole.Output.Write(format, arg);
