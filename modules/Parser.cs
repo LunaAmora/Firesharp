@@ -547,7 +547,7 @@ static class Parser
                         TryGetTypeName(wordList[token.operand], out StructType structType))
                     {
                         NextIRToken();
-                        ParseStructVar(word, loc, token.operand, structType);
+                        ParseConstOrVar(word, loc, token.operand, structType);
                         return true;
                     }
                     return false;
@@ -833,7 +833,7 @@ static class Parser
         _ => () => false,
     };
 
-    static void ParseStructVar(string word, Loc loc, int wordIndex, StructType structType)
+    static void ParseConstOrVar(string word, Loc loc, int wordIndex, StructType structType)
     {
         ExpectNextKeyword(loc, KeywordType.colon, "`:` after variable type definition");
         var assign = ExpectNextKeyword(loc, KeywordType.assignTypes, "`:` or `=` after keyword `:`");
@@ -846,19 +846,25 @@ static class Parser
         var endToken = NextIRTokens(skip);
 
         members.Reverse();
-        if(result.Count == 1 && result.Pop().type is TokenType.any)
+        if(result.Count == 1 && result.Pop() is {} eval)
         {
-            foreach (var member in members)
+            if (eval.type is TokenType.any)
             {
-                var name = $"{word}.{member.name}";
-                var structVar = (name, member.defaultValue, member.type);
-                // Info(loc, "Adding var {0} of type {1}", name, member.type);
-                if(keyword is KeywordType.colon) constList.Add(structVar);
-                else
+                foreach (var member in members)
                 {
-                    if(InsideProc) CurrentProc.localVars.Add(structVar);
-                    else varList.Add(structVar);
+                    var name = $"{word}.{member.name}";
+                    var structWord = (name, member.defaultValue, member.type);
+                    // Info(loc, "Adding var {0} of type {1}", name, member.type);
+                    RegisterTypedWord(keyword, structWord);
                 }
+            }
+            else
+            {
+                var memberType = members[0].type;
+                Assert(memberType is TokenType.any || memberType.Equals(eval.type), endToken.loc,
+                    $"Expected type `{TypeNames(memberType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.type)}`");
+                var structWord = (word, eval.operand, memberType);
+                RegisterTypedWord(keyword, structWord);
             }
         }
         else
@@ -873,16 +879,21 @@ static class Parser
                 var name = $"{word}.{members[a].name}";
                 var item = result.ElementAt(InsideProc ? a : result.Count - 1 - a);
                 // Info(loc, "Adding var {0} of type {1} and value {2}", name, item.frame.type, item.value);
-                var structVar = (name, item.operand, item.type);
-                if(keyword is KeywordType.colon) constList.Add(structVar);
-                else
-                {
-                    if(InsideProc) CurrentProc.localVars.Add(structVar);
-                    else varList.Add(structVar);
-                }
+                var structWord = (name, item.operand, item.type);
+                RegisterTypedWord(keyword, structWord);
             }
         }
         structVarsList.Add((word, wordIndex));
+    }
+
+    static void RegisterTypedWord(KeywordType keyword, TypedWord structWord)
+    {
+        if (keyword is KeywordType.colon) constList.Add(structWord);
+        else
+        {
+            if (InsideProc) CurrentProc.localVars.Add(structWord);
+            else varList.Add(structWord);
+        }
     }
 
     static bool ParseStruct(string word, Loc loc)
@@ -922,33 +933,6 @@ static class Parser
             }
         }
         Error(loc, "Expected struct members or `end` after struct declaration");
-        return false;
-    }
-
-    static bool ParseConstOrVar(string word, Loc loc, TokenType tokType, ref Op? result)
-    {
-        ExpectNextKeyword(loc, KeywordType.colon, $"`:` after `{tokType}`");
-        var assignType = ExpectNextKeyword(loc, KeywordType.assignTypes, $"`:` or `=` after `{TypeNames(tokType)}`");
-        var keyword = (KeywordType)assignType.operand;
-
-        if(CompileEval(out IRToken eval, out int skip))
-        {
-            var endToken = NextIRTokens(skip);
-            Assert((tokType | TokenType.any).HasFlag(eval.type), endToken.loc,
-                $"Expected type `{TypeNames(tokType)}` on the stack at the end of the compile-time evaluation, but found: `{TypeNames(eval.type)}`");
-            
-            TypedWord newVar = (word, eval.operand, tokType);
-            if(keyword is KeywordType.colon) constList.Add(newVar);
-            else
-            {
-                if(InsideProc) CurrentProc.localVars.Add(newVar);
-                else varList.Add(newVar);
-            }
-            return true;
-        }
-
-        var errorContext = $"{(keyword is KeywordType.colon ? "constant " : "variable ")} {TypeNames(tokType)} declaration";
-        InvalidToken(eval, errorContext);
         return false;
     }
 
