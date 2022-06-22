@@ -108,6 +108,7 @@ static class Generator
             IntrinsicType.minus     => "  i32.sub",
             IntrinsicType.or        => "  i32.or",
             IntrinsicType.and       => "  i32.and",
+            IntrinsicType.xor       => "  i32.xor",
             IntrinsicType.greater   => "  i32.gt_s",
             IntrinsicType.greater_e => "  i32.ge_s",
             IntrinsicType.lesser    => "  i32.lt_s",
@@ -156,8 +157,12 @@ static class Generator
 
     static string GenerateMatch(CaseOption option, int operand) => option.type switch
     {
-        CaseType.lesser => $"i32.const {option.value[0]} i32.lt_s",
-        CaseType.equal  => $"i32.const {option.value[0]} i32.eq",
+        CaseType.equal     => $"i32.const {option.value[0]} i32.eq",
+        CaseType.lesser    => $"i32.const {option.value[0]} i32.lt_s",
+        CaseType.lesser_e  => $"i32.const {option.value[0]} i32.le_s",
+        CaseType.greater   => $"i32.const {option.value[0]} i32.gt_s",
+        CaseType.greater_e => $"i32.const {option.value[0]} i32.ge_s",
+        CaseType.bit_and   => $"i32.const {option.value[0]} i32.and",
         CaseType.match  => MatchMultiValues(option),
         CaseType.range  => MatchRanges(option),
         CaseType.@default =>  $"drop br $default|{operand} end",

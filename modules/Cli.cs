@@ -42,10 +42,10 @@ public class CompileCommand : ICommand
             var watch = StartWatch();
 
             TryReadFile(InputFile);
-            Parser.ParseTokens();
+            var program = Parser.ParseTokens();
             watch.TimeIt($"Compilation");
 
-            TypeChecker.TypeCheck(Parser.program);
+            TypeChecker.TypeCheck(program);
             watch.TimeIt($"Typechecking");
 
             if(Path.GetDirectoryName(InputFile.ToString()) is not string dir)
@@ -60,7 +60,7 @@ public class CompileCommand : ICommand
             var outPath = Path.Combine(buildPath, "out.wat");
             var outWasm = Path.Combine(buildPath, "out.wasm");
 
-            Generator.GenerateWasm(Parser.program, outPath);
+            Generator.GenerateWasm(program, outPath);
             watch.TimeIt($"Generation", false);
             
             if(Graph)

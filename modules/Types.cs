@@ -2,13 +2,13 @@ namespace Firesharp.Types;
 
 public record Proc(string name, Contract contract)
 {
+    public List<List<CaseOption>> caseBlocks = new();
     public List<OffsetWord> localMemNames = new();
     public List<TypedWord> localVars = new();
     public List<string> bindings = new();
+    public int currentBlock = -1;
     public int procMemSize = 0;
     public int bindCount = 0;
-    public List<List<CaseOption>> caseBlocks = new();
-    public int currentBlock = -1;
 }
 
 public record struct CaseOption(CaseType type, int[] value)
@@ -165,6 +165,7 @@ public enum IntrinsicType
     lesser_e,
     and,
     or,
+    xor,
     load8,
     store8,
     load16,
@@ -210,6 +211,9 @@ public enum CaseType
     match,
     range,
     lesser,
+    lesser_e,
     greater,
+    greater_e,
+    bit_and,
     @default,
 }

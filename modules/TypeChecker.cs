@@ -24,11 +24,7 @@ static class TypeChecker
             dataStack.Push(TokenType.ptr, op.loc);
         },
         OpType.push_global => () => dataStack.Push(TokenType.ptr, op.loc),
-        OpType.push_local => () =>
-        {
-            Assert(InsideProc, error: "Unreachable, parser error.");
-            dataStack.Push(TokenType.ptr, op.loc);
-        },
+        OpType.push_local  => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.unpack => () =>
         {
             dataStack.ExpectArity(1, ArityType.any, op.loc);
@@ -100,13 +96,11 @@ static class TypeChecker
         },
         OpType.prep_proc => () =>
         {
-            Assert(!InsideProc, error: "Unreachable, parser error.");
             CurrentProc = procList[op.operand];
             CurrentProc.contract.ins.ForEach(type => dataStack.Push(type, op.loc));
         },
         OpType.end_proc => () =>
         {
-            Assert(InsideProc, error: "Unreachable, parser error.");
             var outsCopy = new List<TokenType>(CurrentProc.contract.outs);
             outsCopy.Reverse();
             TokenType[] endStack = outsCopy.ToArray();
@@ -273,12 +267,13 @@ static class TypeChecker
                 dataStack.Push(dataStack.Pop().type, op.loc);
             },
             IntrinsicType.or or
+            IntrinsicType.xor or
             IntrinsicType.and => () =>
             {
                 dataStack.ExpectArity(op.loc, TokenType.@int, TokenType.@int);
                 dataStack.Pop();
                 dataStack.Pop();
-                dataStack.Push(TokenType.@bool, op.loc);
+                dataStack.Push(TokenType.@int, op.loc);
             },
             IntrinsicType.lesser or
             IntrinsicType.greater or

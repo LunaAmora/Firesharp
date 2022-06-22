@@ -17,27 +17,29 @@ static class Parser
     public static List<TypedWord> varList = new();
     public static List<string> wordList = new();
     public static List<Proc> procList = new();
-    public static List<Op> program = new();
     public static int totalDataSize = 0;
     public static int totalMemSize = 0;
 
     static List<OffsetWord> structVarsList = new();
     static List<TypedWord>  constList = new();
     static List<OffsetWord> memList = new();
+
     static LinkedList<IRToken> IRTokens = new();
     static Stack<Op> opBlock = new();
+    static List<Op> program = new();
     static Proc? _currentProc;
 
     public static int finalDataSize => ((totalDataSize + 3)/4)*4;
     public static int totalVarsSize => varList.Count * 4;
-    public static bool InsideProc   => _currentProc != null;
     public static void ExitCurrentProc() => _currentProc = null;
+    
+    static bool InsideProc => _currentProc != null;
 
     public static Proc CurrentProc
     {
         get
         {
-            Debug.Assert(_currentProc is {});
+            Debug.Assert(_currentProc is {}, "Unreachable, parser error. Tried to access the current procedure outside of one");
             return _currentProc;
         }
         set => _currentProc = value;
@@ -61,12 +63,8 @@ static class Parser
     public static List<Op> ParseTokens()
     {
         while(NextIRToken() is {} token)
-        {
             if(DefineOp(token) is {} op)
-            {
                 program.Add(op);
-            }
-        }
         return program;
     }
     
@@ -74,19 +72,16 @@ static class Parser
 
     static IRToken? PeekIRToken()
     {
-        if(IRTokens.Count > 0) return IRTokens.First();
-        return null;
+        if(IRTokens.Count is 0) return null;
+        return IRTokens.First();
     }
 
     static IRToken? NextIRToken()
     {
-        if(IRTokens.Count > 0)
-        {
-            var result = IRTokens.First?.Value;
-            IRTokens.RemoveFirst();
-            return result;
-        }
-        else return null;
+        if(IRTokens.Count is 0) return null;
+        var result = IRTokens.First?.Value;
+        IRTokens.RemoveFirst();
+        return result;
     }
     
     static IRToken NextIRTokens(int quantity)
@@ -112,6 +107,7 @@ static class Parser
             "<=" => IntrinsicType.lesser_e,
             "or"  => IntrinsicType.or,
             "and" => IntrinsicType.and,
+            "xor" => IntrinsicType.xor,
             "@8"  => IntrinsicType.load8,
             "!8"  => IntrinsicType.store8,
             "@16" => IntrinsicType.load16,
@@ -202,24 +198,21 @@ static class Parser
         {
             {type: OpType.@while} => PushBlock((OpType.@do, loc)),
             {type: OpType.case_match} op => PushBlock((OpType.case_option, op.operand, loc)),
-            {} op => (Op?)Error(loc, $"`do` can only come in a `while` or `case` block, but found a `{op.type}` block instead`",
-                $"{op.loc} [INFO] The found block started here")
+            {} op => InvalidBlock(loc, op, "`do` can only come in a `while` or `case` block"),
         },
         KeywordType.let   => PushBlock(ParseBindings((OpType.bind_stack, loc))),
         KeywordType.@case => StartCase((OpType.case_start, loc)),
         KeywordType.colon => PopBlock(loc, type) switch
         {
             {type: OpType.case_start} => ParseCaseMatch((OpType.case_match, loc)),
-            {} op => (Op?)Error(loc, $"`:` can be used on word or `case` block definition, but found a `{op.type}` block instead`",
-                $"{op.loc} [INFO] The found block started here")
+            {} op => InvalidBlock(loc, op, "`:` can only be used on word or `case` block definition"),
         },
         KeywordType.@if   => PushBlock((OpType.if_start, loc)),
         KeywordType.@else => PopBlock(loc, type) switch
         {
             {type: OpType.if_start} => PushBlock((OpType.@else, loc)),
             {type: OpType.case_option} => ParseCaseMatch((OpType.case_match, loc)),
-            {} op => (Op?)Error(loc, $"`else` can only come in a `if` or `case` block, but found a `{op.type}` block instead`",
-                $"{op.loc} [INFO] The found block started here")
+            {} op => InvalidBlock(loc, op, "`else` can only come in a `if` or `case` block"),
         },
         KeywordType.end => PopBlock(loc, type) switch
         {
@@ -229,115 +222,15 @@ static class Parser
             {type: OpType.case_option} => EndCase((OpType.end_case, loc)),
             {type: OpType.prep_proc} op => ExitProc((OpType.end_proc, op.operand, loc)),
             {type: OpType.bind_stack} op => PopBind((OpType.pop_bind, op.operand, loc)),
-            {} op => (Op?)Error(loc, $"`end` can not close a `{op.type}` block",
-                $"{op.loc} [INFO] The found block started here")
+            {} op => InvalidBlock(loc, op, "Expected `end` to close a valid block"),
         },
         KeywordType.include => IncludeFile(loc),
         _ => (Op?)ErrorHere($"Keyword type not implemented in `DefineOp` yet: {type}", loc)
     };
 
-    static Op StartCase(Op op)
-    {
-        var proc = CurrentProc;
-        proc.caseBlocks.Add(new());
-        op.operand = proc.caseBlocks.Count() - 1;
-        proc.currentBlock += 1;
-        return PushBlock(PushBlock(op));
-    }
-
-    private static Op EndCase(Op op)
-    {
-        var proc = CurrentProc;
-        Assert(proc.caseBlocks[proc.currentBlock]
-               .Last().type is CaseType.@default,
-               op.loc,
-               "Expected last match of a `case` block to be `_`");
-        op.operand = proc.currentBlock--;
-        Assert(PopBlock(op.loc, KeywordType.end).type is OpType.case_start, op.loc, $"Unreachable, parser error");
-        return op;
-    }
-
-    static Op? ParseCaseMatch(Op op)
-    {
-        CaseType caseType = CaseType.none;
-        List<int> optionMatch = new();
-        var proc = CurrentProc;
-        int i = 0;
-        while (i < IRTokens.Count)
-        {
-            IRToken token = IRTokenAt(i++);
-            if(token.type is TokenType.keyword && (KeywordType)token.operand is KeywordType.@do) break;
-            else if(token.type is TokenType.word && wordList[token.operand] is {} word)
-            {
-                if(word.Equals("_"))
-                {
-                    caseType = CaseType.@default;
-                    continue;
-                }
-                if(TryParseRange(word, token.loc, out(int start, int end) range))
-                {
-                    if(caseType is CaseType.none or CaseType.range)
-                    {
-                        caseType = CaseType.range;
-                        optionMatch.Add(range.start);
-                        optionMatch.Add(range.end);
-                        continue;
-                    }
-                    if(caseType is CaseType.equal or CaseType.match)
-                    {
-                        caseType = CaseType.range;
-                        var values = optionMatch.ToArray();
-                        optionMatch.Clear();
-                        for (int j = 0; j < values.Count(); j++)
-                        {                    
-                            optionMatch.Add(values[j]);
-                            optionMatch.Add(values[j]);
-                        }
-                        optionMatch.Add(range.start);
-                        optionMatch.Add(range.end);
-                        continue;
-                    }
-                }
-                
-                if(TryGetIntrinsic(word, out IntrinsicType intr))
-                {
-                    caseType = intr switch
-                    {
-                        IntrinsicType.lesser => CaseType.lesser,
-                        _ => CaseType.none,
-                    };
-
-                    if(caseType is CaseType.none)
-                        ErrorHere($"IntrinsicType not implemented in `ParseCaseMatch` yet: {intr}");
-                    i++;
-                    break;
-                }
-
-                if(TryGetConstName(word, out TypedWord res) && res.type is TokenType.@int)
-                    token = new (res, token.loc);
-            }
-            
-            if(token.type is TokenType.@int)
-            {
-                if     (caseType is CaseType.none)  caseType = CaseType.equal;
-                else if(caseType is CaseType.equal) caseType = CaseType.match;
-                else if(caseType is CaseType.range) optionMatch.Add(token.operand);
-                else ErrorHere("Not implemented case", token.loc);
-
-                optionMatch.Add(token.operand);
-                continue;
-            }
-
-            InvalidToken(token, "case declaration");
-        }
-
-        NextIRTokens(i-1);
-        var current = proc.caseBlocks[proc.currentBlock];
-        current.Add((caseType, optionMatch.ToArray()));
-        op.operand = current.Count() - 1;
-        PushBlock(op);
-        return null;
-    }
+    static Op? InvalidBlock(Loc loc, Op op, string error) => 
+        (Op?)Error(loc, $"{error}, but found a `{op.type}` block instead`",
+                        $"{op.loc} [INFO] The found block started here");
 
     static bool ExpectProc(TokenType type, Loc loc, string errorText)
         => !Assert(type is TokenType.keyword or TokenType.word || InsideProc, loc, errorText);
@@ -384,6 +277,26 @@ static class Parser
     static Op ExitProc(Op op)
     {
         ExitCurrentProc();
+        return op;
+    }
+
+    static Op StartCase(Op op)
+    {
+        var proc = CurrentProc;
+        proc.caseBlocks.Add(new());
+        op.operand = proc.caseBlocks.Count() - 1;
+        proc.currentBlock += 1;
+        return PushBlock(PushBlock(op));
+    }
+
+    private static Op EndCase(Op op)
+    {
+        var proc = CurrentProc;
+        Assert(proc.caseBlocks[proc.currentBlock]
+               .Last().type is CaseType.@default,
+               op.loc, "Expected last match of a `case` block to be `_`");
+        op.operand = proc.currentBlock--;
+        Assert(PopBlock(op.loc, KeywordType.end).type is OpType.case_start, op.loc, $"Unreachable, parser error");
         return op;
     }
 
@@ -776,22 +689,15 @@ static class Parser
                 if((KeywordType)token.operand is KeywordType.end)
                 {
                     if(result.Count == 0 && i == 0)
-                    {
                         result.Push((TokenType.any, 0, token.loc));
-                        skip = 1;
-                        return true;
-                    }
                     else if(result.Count != quantity)
                     {
                         var typs = result.Select(f => (TypeFrame)f).ToList().ListTypes(true);
                         Error(token.loc, $"Expected {quantity} value{(quantity > 1 ? "s" : "")} on the stack in the end of the compile-time evaluation, but found: {typs}");
                         break;
                     }
-                    else
-                    {
-                        skip = i+1;
-                        return true;
-                    }
+                    skip = i+1;
+                    return true;
                 }
             }
             if(!EvalToken(token, result)())
@@ -1135,6 +1041,94 @@ static class Parser
             else Error(tok.loc, $"Expected only words on binding definition, but found: {TypeNames(tok.type)}");
         }
         return op;
+    }
+
+    static Op? ParseCaseMatch(Op op)
+    {
+        CaseType caseType = CaseType.none;
+        List<int> optionMatch = new();
+        var proc = CurrentProc;
+        int i = 0;
+        while (i < IRTokens.Count)
+        {
+            IRToken token = IRTokenAt(i++);
+            if(token.type is TokenType.keyword && (KeywordType)token.operand is KeywordType.@do) break;
+            else if(token.type is TokenType.word && wordList[token.operand] is {} word)
+            {
+                if(word.Equals("_"))
+                {
+                    caseType = CaseType.@default;
+                    continue;
+                }
+                if(TryParseRange(word, token.loc, out(int start, int end) range))
+                {
+                    if(caseType is CaseType.none or CaseType.range)
+                    {
+                        caseType = CaseType.range;
+                        optionMatch.Add(range.start);
+                        optionMatch.Add(range.end);
+                        continue;
+                    }
+                    if(caseType is CaseType.equal or CaseType.match)
+                    {
+                        caseType = CaseType.range;
+                        var values = optionMatch.ToArray();
+                        optionMatch.Clear();
+                        for (int j = 0; j < values.Count(); j++)
+                        {                    
+                            optionMatch.Add(values[j]);
+                            optionMatch.Add(values[j]);
+                        }
+                        optionMatch.Add(range.start);
+                        optionMatch.Add(range.end);
+                        continue;
+                    }
+                }
+                
+                if(TryGetIntrinsic(word, out IntrinsicType intr))
+                {
+                    Assert(caseType is CaseType.none or CaseType.equal, token.loc,
+                        "Case comparisson only supports one value at the match option.");
+                    caseType = intr switch
+                    {
+                        IntrinsicType.lesser    => CaseType.lesser,
+                        IntrinsicType.lesser_e  => CaseType.lesser_e,
+                        IntrinsicType.greater   => CaseType.greater,
+                        IntrinsicType.greater_e => CaseType.greater_e,
+                        IntrinsicType.and       => CaseType.bit_and,
+                        _ => CaseType.none,
+                    };
+
+                    if(caseType is CaseType.none)
+                        ErrorHere($"IntrinsicType not implemented in `ParseCaseMatch` yet: {intr}");
+                    i++;
+                    break;
+                }
+
+                if(TryGetConstName(word, out TypedWord res) && res.type is TokenType.@int)
+                    token = new (res, token.loc);
+            }
+            
+            if(token.type is TokenType.@int)
+            {
+                if     (caseType is CaseType.none)  caseType = CaseType.equal;
+                else if(caseType is CaseType.equal) caseType = CaseType.match;
+                else if(caseType is CaseType.range) optionMatch.Add(token.operand);
+                else ErrorHere("Not implemented case", token.loc);
+
+                optionMatch.Add(token.operand);
+                continue;
+            }
+
+            InvalidToken(token, "case declaration");
+        }
+
+        NextIRTokens(i-1);
+        var current = proc.caseBlocks[proc.currentBlock];
+        current.Add((caseType, optionMatch.ToArray()));
+        op.operand = current.Count() - 1;
+        PushBlock(op);
+        return null;
     }
 
     static IRToken ExpectNextToken(Loc loc, TokenType expected, string notFound)
