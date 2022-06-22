@@ -3,8 +3,8 @@ namespace Firesharp.Types;
 public record Proc(string name, Contract contract)
 {
     public List<List<CaseOption>> caseBlocks = new();
-    public List<OffsetWord> localMemNames = new();
     public List<TypedWord> localVars = new();
+    public List<Word> localMemNames = new();
     public List<string> bindings = new();
     public int currentBlock = -1;
     public int procMemSize = 0;
@@ -66,26 +66,26 @@ public record struct StructMember(string name, TokenType type, int defaultValue 
         => new StructMember(string.Empty, type);
 }
 
-public record struct OffsetWord(string name, int offset)
+public record struct Word(string name, int value)
 {
-    public static implicit operator OffsetWord((string name, int offset) value)
-        => new(value.name, value.offset);
+    public static implicit operator Word((string name, int value) value)
+        => new Word(value.name, value.value);
 }
 
-public record SizedWord(OffsetWord word)
+public record SizedWord(Word word)
 {
     public int offset = -1;
     public string name => word.name;
-    public int    size => word.offset;
+    public int size => word.value;
 }
 
-public record struct TypedWord(OffsetWord word, TokenType type)
+public record struct TypedWord(Word word, TokenType type)
 {
-    public TypedWord(string name, int offset, TokenType type) : this ((name, offset), type){}
-    public static implicit operator TypedWord((string name, int offset, TokenType type) value)
-        => new(value.name, value.offset, value.type);
+    public TypedWord(string name, int value, TokenType type) : this ((name, value), type){}
+    public static implicit operator TypedWord((string name, int value, TokenType type) value)
+        => new TypedWord((value.name, value.value), value.type);
     public string name => word.name;
-    public int value => word.offset;
+    public int value => word.value;
 }
 
 public record struct TypeFrame(TokenType type, Loc loc)

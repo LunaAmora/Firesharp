@@ -20,9 +20,9 @@ static class Parser
     public static int totalDataSize = 0;
     public static int totalMemSize = 0;
 
-    static List<OffsetWord> structVarsList = new();
-    static List<TypedWord>  constList = new();
-    static List<OffsetWord> memList = new();
+    static List<TypedWord> constList = new();
+    static List<Word> structVarsList = new();
+    static List<Word> memList = new();
 
     static LinkedList<IRToken> IRTokens = new();
     static Stack<Op> opBlock = new();
@@ -247,7 +247,7 @@ static class Parser
         return operand;
     }
     
-    private static Op? IncludeFile(Loc loc)
+    static Op? IncludeFile(Loc loc)
     {
         var path = ExpectNextToken(loc, TokenType.str, "include file name");
         var word = dataList[path.operand];
@@ -289,7 +289,7 @@ static class Parser
         return PushBlock(PushBlock(op));
     }
 
-    private static Op EndCase(Op op)
+    static Op EndCase(Op op)
     {
         var proc = CurrentProc;
         Assert(proc.caseBlocks[proc.currentBlock]
@@ -363,7 +363,7 @@ static class Parser
         {
             var index = proc.localMemNames.FindIndex(mem => mem.name.Equals(word));
             if(index >= 0)
-                return (OpType.push_local_mem, proc.localMemNames[index].offset, loc);
+                return (OpType.push_local_mem, proc.localMemNames[index].value, loc);
         }
         return null;
     }
@@ -389,7 +389,7 @@ static class Parser
                TryGetVar(word, loc, varList, false, store, pointer);
     }
 
-    private static bool TryGetVar(string word, Loc loc, List<TypedWord> vars, bool local, bool store, bool pointer)
+    static bool TryGetVar(string word, Loc loc, List<TypedWord> vars, bool local, bool store, bool pointer)
     {
         var pushType = local ? OpType.push_local : OpType.push_global;
         var index = vars.FindIndex(val => val.name.Equals(word));
@@ -470,7 +470,7 @@ static class Parser
         var index = structVarsList.FindIndex(vars => vars.name.Equals(word));
         if(index >= 0)
         {
-            return TryGetTypeName(wordList[structVarsList[index].offset], out result);
+            return TryGetTypeName(wordList[structVarsList[index].value], out result);
         }
         result = default;
         return false;
@@ -492,7 +492,7 @@ static class Parser
     {
         var index = memList.FindIndex(mem => mem.name.Equals(word));
         if(index < 0) return null;
-        return (OpType.push_global_mem, memList[index].offset, loc);
+        return (OpType.push_global_mem, memList[index].value, loc);
     }
 
     static bool TryGetDataPointer(string word, out TokenType typePtr)

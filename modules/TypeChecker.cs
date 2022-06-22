@@ -27,12 +27,11 @@ static class TypeChecker
         OpType.push_local  => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.unpack => () =>
         {
-            dataStack.ExpectArity(1, ArityType.any, op.loc);
-            var A = dataStack.Pop();
+            var A = dataStack.ExpectArityPop(ArityType.any, op.loc);
             Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot unpack element of type: `{TypeNames(A.type)}`");
             var stk = structList[A.type - TokenType.data_ptr];
             op.operand = structList.IndexOf(stk);
-            stk.members.ForEach(member => dataStack.Push(member.type, op.loc));
+            dataStack.Push(stk.members.Select(member => member.type).ToList(), op.loc);
         },
         OpType.offset => () =>
         {
@@ -46,40 +45,29 @@ static class TypeChecker
         },
         OpType.swap => () =>
         {
-            dataStack.ExpectArity(2, ArityType.any, op.loc);
-            var A = dataStack.Pop();
-            var B = dataStack.Pop();
-            dataStack.Push(A);
-            dataStack.Push(B);
+            var top = dataStack.ExpectArityPop(2, ArityType.any, op.loc);
+            dataStack.Push(top[0]);
+            dataStack.Push(top[1]);
         },
-        OpType.drop => () =>
-        {
-            dataStack.ExpectArity(1, ArityType.any, op.loc);
-            dataStack.Pop();
-        },
+        OpType.drop => () => dataStack.ExpectArityPop(ArityType.any, op.loc),
         OpType.dup => () =>
         {
-            dataStack.ExpectArity(1, ArityType.any, op.loc);
-            dataStack.Push(dataStack.Peek().type, op.loc);
+            var top = dataStack.ExpectArityPeek(TokenType.any, op.loc);
+            dataStack.Push(top.type, op.loc);
         },
         OpType.rot => () =>
         {
-            dataStack.ExpectArity(3, ArityType.any, op.loc);
-            var A = dataStack.Pop();
-            var B = dataStack.Pop();
-            var C = dataStack.Pop();
-            dataStack.Push(B);
-            dataStack.Push(A);
-            dataStack.Push(C);
+            var top = dataStack.ExpectArityPop(3, ArityType.any, op.loc);
+            dataStack.Push(top[1]);
+            dataStack.Push(top[0]);
+            dataStack.Push(top[2]);
         },
         OpType.over => () =>
         {
-            dataStack.ExpectArity(2, ArityType.any, op.loc);
-            var A = dataStack.Pop();
-            var B = dataStack.Pop();
-            dataStack.Push(B);
-            dataStack.Push(A);
-            dataStack.Push(B);
+            var top = dataStack.ExpectArityPop(2, ArityType.any, op.loc);
+            dataStack.Push(top[1]);
+            dataStack.Push(top[0]);
+            dataStack.Push(top[1]);
         },
         OpType.push_global_mem => () => dataStack.Push(TokenType.ptr, op.loc),
         OpType.push_local_mem  => () => dataStack.Push(TokenType.ptr, op.loc),
@@ -89,15 +77,15 @@ static class TypeChecker
             {
                 var insCopy = new List<TokenType>(ins);
                 insCopy.Reverse();
-                dataStack.ExpectArity(op.loc, insCopy.ToArray());
-                insCopy.ForEach(_ => dataStack.Pop());
-                for (int i = 0; i < outs.Count; i++) dataStack.Push(outs[i], op.loc);
+                dataStack.ExpectArityPop(op.loc, insCopy.ToArray());
+                dataStack.Push(outs, op.loc);
             }
         },
         OpType.prep_proc => () =>
         {
-            CurrentProc = procList[op.operand];
-            CurrentProc.contract.ins.ForEach(type => dataStack.Push(type, op.loc));
+            var proc = procList[op.operand];
+            CurrentProc = proc;
+            dataStack.Push(proc.contract.ins, op.loc);
         },
         OpType.end_proc => () =>
         {
@@ -105,8 +93,7 @@ static class TypeChecker
             outsCopy.Reverse();
             TokenType[] endStack = outsCopy.ToArray();
 
-            dataStack.ExpectStackExact(op.loc, endStack);
-            foreach (var _ in endStack) dataStack.Pop();
+            dataStack.ExpectExactPop(op.loc, endStack);
             
             ExitCurrentProc();
             dataStack = new();
@@ -118,8 +105,7 @@ static class TypeChecker
         },
         OpType.@do => () =>
         {
-            dataStack.ExpectArity(1, TokenType.@bool, op.loc);
-            dataStack.Pop();
+            dataStack.ExpectArityPop(TokenType.@bool, op.loc);
             
             var (expected, startOp) = blockStack.Peek();
 
@@ -153,8 +139,7 @@ static class TypeChecker
         },
         OpType.if_start => () =>
         {
-            dataStack.ExpectArity(1, TokenType.@bool, op.loc);
-            dataStack.Pop();
+            dataStack.ExpectArityPop(TokenType.@bool, op.loc);
             blockStack.Push((dataStack, op));
             dataStack = new(dataStack);
         },
@@ -194,8 +179,8 @@ static class TypeChecker
         },
         OpType.bind_stack => () =>
         {
-            dataStack.ExpectArity(op.operand, ArityType.any, op.loc);
-            for (int i = 0; i < op.operand; i++) bindStack.Push(dataStack.Pop());
+            var top = dataStack.ExpectArityPop(op.operand, ArityType.any, op.loc);
+            for (int i = 0; i < op.operand; i++) bindStack.Push(top[i]);
         },
         OpType.push_bind => () =>
         {
@@ -208,15 +193,12 @@ static class TypeChecker
         },
         OpType.equal => () =>
         {
-            dataStack.ExpectArity(2, ArityType.same, op.loc);
-            dataStack.Pop();
-            dataStack.Pop();
+            dataStack.ExpectArityPop(2, ArityType.same, op.loc);
             dataStack.Push(TokenType.@bool, op.loc);
         },
         OpType.case_start => () =>
         {
-            dataStack.ExpectArity(1, TokenType.@int, op.loc);
-            dataStack.Pop();
+            dataStack.ExpectArityPop(TokenType.@int, op.loc);
             blockStack.Push((dataStack, op));
             dataStack = new(dataStack);
         },
@@ -253,26 +235,20 @@ static class TypeChecker
             dataStack.minCount   = oldStack.stackCount + ins;
             dataStack.stackCount = oldStack.stackCount;
         },
-        OpType.expectType => () =>
-        {
-            dataStack.ExpectArity(1, (TokenType)(op.operand), op.loc);
-        },
+        OpType.expectType => () => dataStack.ExpectArityPeek((TokenType)(op.operand), op.loc),
         OpType.intrinsic => () => ((IntrinsicType)op.operand switch
         {
             IntrinsicType.plus or
             IntrinsicType.minus => () =>
             {
-                dataStack.ExpectArity(2, ArityType.same, op.loc);
-                dataStack.Pop();
-                dataStack.Push(dataStack.Pop().type, op.loc);
+                var top = dataStack.ExpectArityPop(2, ArityType.same, op.loc);
+                dataStack.Push(top[1].type, op.loc);
             },
             IntrinsicType.or or
             IntrinsicType.xor or
             IntrinsicType.and => () =>
             {
-                dataStack.ExpectArity(op.loc, TokenType.@int, TokenType.@int);
-                dataStack.Pop();
-                dataStack.Pop();
+                dataStack.ExpectArityPop(op.loc, TokenType.@int, TokenType.@int);
                 dataStack.Push(TokenType.@int, op.loc);
             },
             IntrinsicType.lesser or
@@ -280,42 +256,28 @@ static class TypeChecker
             IntrinsicType.lesser_e or
             IntrinsicType.greater_e => () =>
             {
-                dataStack.ExpectArity(2, ArityType.same, op.loc);
-                dataStack.Pop();
-                dataStack.Pop();
+                dataStack.ExpectArityPop(2, ArityType.same, op.loc);
                 dataStack.Push(TokenType.@bool, op.loc);
             },
             IntrinsicType.load8 or
             IntrinsicType.load16 or
             IntrinsicType.load32 => () =>
             {
-                dataStack.ExpectArity(1, TokenType.ptr, op.loc);
-                dataStack.Pop();
+                dataStack.ExpectArityPop(TokenType.ptr, op.loc);
                 dataStack.Push(TokenType.@int, op.loc);
             },
             IntrinsicType.store8 or
             IntrinsicType.store16 or
-            IntrinsicType.store32 => () =>
-            {
-                dataStack.ExpectArity(op.loc, TokenType.any, TokenType.any);
-                dataStack.Pop();
-                dataStack.Pop();
-            },
+            IntrinsicType.store32 => () => dataStack.ExpectArityPop(op.loc, TokenType.any, TokenType.any),
             IntrinsicType.fd_write => () =>
             {
-                dataStack.ExpectArity(op.loc, TokenType.ptr, TokenType.@int, TokenType.ptr, TokenType.@int);
-                dataStack.Pop();
-                dataStack.Pop();
-                dataStack.Pop();
-                dataStack.Pop();
+                dataStack.ExpectArityPop(op.loc, TokenType.ptr, TokenType.@int, TokenType.ptr, TokenType.@int);
                 dataStack.Push(TokenType.ptr, op.loc);
             },
             {} cast when cast >= IntrinsicType.cast => () =>
             {
-                dataStack.ExpectArity(1, ArityType.any, op.loc);
-                var A = dataStack.Pop();
+                dataStack.ExpectArityPop(ArityType.any, op.loc);
                 dataStack.Push(TokenType.@int + (int)(cast - IntrinsicType.cast), op.loc);
-                // Info($"Casting {A.type} to {TypeNames(TokenType.@int + (int)(cast - IntrinsicType.cast))}");
             },
             _ => (Action) (() => ErrorHere($"Intrinsic type not implemented in `TypeCheckOp` yet: `{(IntrinsicType)op.operand}`", op.loc))
         })(),
@@ -324,8 +286,7 @@ static class TypeChecker
 
     static TokenType ExpectStructPointer(this DataStack stack, Op op, string prefix)
     {
-        stack.ExpectArity(1, ArityType.any, op.loc);
-        var A = stack.Pop();
+        var A = dataStack.ExpectArityPop(ArityType.any, op.loc);
         Assert(A.type >= TokenType.data_ptr, op.loc, $"Cannot `.` access elements of type: `{TypeNames(A.type)}`");
         var word = wordList[op.operand].Split(prefix)[1];
         var stk = structList[A.type - TokenType.data_ptr];
@@ -333,6 +294,41 @@ static class TypeChecker
         Assert(index >= 0, op.loc, $"The struct {stk.name} does not contain a member with name: `{word}`");
         op.operand = index * 4;
         return stk.members[index].type;
+    }
+
+    static TypeFrame ExpectArityPeek(this DataStack stack, TokenType type, Loc loc)
+    {
+        stack.ExpectArity(1, type, loc);
+        return stack.Peek();
+    }
+    
+    static void ExpectArityPop(this DataStack stack, Loc loc, params TokenType[] contract)
+    {
+        stack.ExpectArity(loc, contract);
+        stack.Pop(contract.Count());
+    }
+    static void ExpectExactPop(this DataStack stack, Loc loc, params TokenType[] contract)
+    {
+        ExpectStackExact(stack.typeFrames, loc, contract);
+        stack.Pop(contract.Count());
+    }
+
+    static TypeFrame ExpectArityPop(this DataStack stack, ArityType arityT, Loc loc)
+    {
+        stack.ExpectArity(1, arityT, loc);
+        return stack.Pop();
+    }
+
+    static TypeFrame ExpectArityPop(this DataStack stack, TokenType type, Loc loc)
+    {
+        stack.ExpectArity(1, type, loc);
+        return stack.Pop();
+    }
+
+    static TypeFrame[] ExpectArityPop(this DataStack stack, int arityN, ArityType arityT, Loc loc)
+    {
+        stack.ExpectArity(arityN, arityT, loc);
+        return stack.GetPop(arityN);
     }
 
     static void ExpectArity(this DataStack stack, int arityN, ArityType arityT, Loc loc)
@@ -344,12 +340,6 @@ static class TypeChecker
             ArityType.same => ExpectArity(stack, arityN, loc),
             _ => false
         }, loc, "Arity check failed");
-    }
-
-    static void ExpectStackSize(this DataStack stack, int arityN, Loc loc)
-    {
-        Assert(stack.Count() >= arityN, loc, "Stack has less elements than expected",
-        $"{loc} [INFO] Expected `{arityN}` elements, but found `{stack.Count()}`");
     }
 
     static bool ExpectArity(this DataStack stack, int arityN, Loc loc)
@@ -369,25 +359,11 @@ static class TypeChecker
         return true;
     }
 
-    public static bool ExpectType(TypeFrame frame, TokenType expected, Loc loc)
-    {
-        if(!expected.Equals(frame.type))
-        {
-            Error(loc, $"Expected type `{TypeNames(expected)}`, but found `{TypeNames(frame.type)}`",
-                $"{frame.loc} [INFO] The type found was declared here");
-            return false;
-        }
-        return true;
-    }
-
-    static bool ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
+    static void ExpectArity(this DataStack stack, Loc loc, params TokenType[] contract)
     {
         stack.ExpectStackSize(contract.Count(), loc);
-        return ExpectArity(stack.typeFrames, loc, contract);
+        ExpectArity(stack.typeFrames, loc, true, contract);
     }
-
-    static bool ExpectArity(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
-        => ExpectArity(stack, loc, true, contract);
 
     static bool ExpectArity(this IEnumerable<TypeFrame> stack, Loc loc, bool panic, params TokenType[] contract)
     {
@@ -411,8 +387,22 @@ static class TypeChecker
         return true;
     }
 
-    static void ExpectStackExact(this DataStack stack, Loc loc, params TokenType[] contract)
-        => ExpectStackExact(stack.typeFrames, loc, contract);
+    static void ExpectStackSize(this DataStack stack, int arityN, Loc loc)
+    {
+        Assert(stack.Count() >= arityN, loc, "Stack has less elements than expected",
+        $"{loc} [INFO] Expected `{arityN}` elements, but found `{stack.Count()}`");
+    }
+
+    public static bool ExpectType(TypeFrame frame, TokenType expected, Loc loc)
+    {
+        if(expected is not TokenType.any && !expected.Equals(frame.type))
+        {
+            Error(loc, $"Expected type `{TypeNames(expected)}`, but found `{TypeNames(frame.type)}`",
+                $"{frame.loc} [INFO] The type found was declared here");
+            return false;
+        }
+        return true;
+    }
 
     public static void ExpectStackExact(this IEnumerable<TypeFrame> stack, Loc loc, params TokenType[] contract)
     {
@@ -473,6 +463,12 @@ static class TypeChecker
             minCount = dataStack.minCount;
         }
 
+        public void Push(List<TokenType> type, Loc loc)
+        {
+            for (int i = 0; i < type.Count(); i++)
+                Push(type[i], loc);
+        }
+
         public void Push(TokenType type, Loc loc) => Push((type, loc));
         public void Push(TypeFrame typeFrame)
         {
@@ -486,6 +482,20 @@ static class TypeChecker
             return typeFrames.Pop();
         }
 
+        public void Pop(int n)
+        {
+            stackMinus(n);
+            for (int i = 0; i < n; i++) typeFrames.Pop();
+        }
+
+        public TypeFrame[] GetPop(int n)
+        {
+            stackMinus(n);
+            var result = new TypeFrame[n];
+            for (int i = 0; i < n; i++) result[i] = typeFrames.Pop();
+            return result;
+        }
+
         public TypeFrame Peek()
         {
             stackMinus();
@@ -496,9 +506,9 @@ static class TypeChecker
         public int Count() => typeFrames.Count;
         public TypeFrame ElementAt(int v) => typeFrames.ElementAt(v);
 
-        void stackMinus()
+        void stackMinus(int n = 1)
         {
-            stackCount--;
+            stackCount -= 1;
             if(stackCount < minCount) minCount = stackCount;
         }
     }
