@@ -1,5 +1,6 @@
 namespace Firesharp;
 
+using System.Text.RegularExpressions;
 using static Parser;
 
 class Tokenizer
@@ -80,11 +81,11 @@ class Tokenizer
             index = dataList.Count;
             if(tok.name.StartsWith('\"') && tok.name is string name)
             {
-                if(!tok.name.EndsWith('\"'))
+                if(!name.EndsWith('\"'))
                 {
                     AdvanceByPredicate(pred => pred == '\"');
                     name = ReadByPredicate(pred => pred == ' ');
-                    Assert(name.EndsWith('\"'), tok.loc, "Missing closing '\"' in string literal");
+                    Assert(name.EndsWith('\"'), tok.loc, "Missing closing `\"` in string literal");
                 }
                 
                 name = name.Trim('\"');
@@ -100,6 +101,8 @@ class Tokenizer
         {
             false
                 => (null),
+            _ when TryParseChar(tok, out int value)
+                => new(TokenType.@int, value, tok.loc),
             _ when TryParseString(tok, out int index)
                 => new(TokenType.str, index, tok.loc),
             _ when TryParseNumber(tok.name, out int value)
@@ -108,6 +111,7 @@ class Tokenizer
                 => new(TokenType.keyword, keyword, tok.loc),
             _ => new(TokenType.word, DefineWord(tok.name), tok.loc)
         };
+
     }
 
     static int DefineWord(string word)
@@ -116,6 +120,22 @@ class Tokenizer
         return wordList.Count - 1;
     }
 
+    static bool TryParseChar(Token tok, out int value)
+    {
+        if(tok.name.StartsWith('\'') && tok.name is string name)
+        {
+            Assert(name.EndsWith('\''), tok.loc, "Missing closing `\'` in char literal");
+            var code = Regex.Unescape(name.Trim('\''));
+            Assert(code.Length == 1, tok.loc, "Char literals cannot contain more than one char");
+            {
+                value = code[0];
+                return true;
+            }
+        }
+        value = -1;
+        return false;
+    }
+    
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);
 
     static bool TryParseKeyword(string word, out int result)
