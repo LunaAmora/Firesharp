@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using CliFx.Infrastructure;
-using CliWrap.Exceptions;
 using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliWrap;

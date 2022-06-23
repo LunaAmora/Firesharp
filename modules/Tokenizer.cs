@@ -122,18 +122,17 @@ class Tokenizer
 
     static bool TryParseChar(Token tok, out int value)
     {
-        if(tok.name.StartsWith('\'') && tok.name is string name)
+        switch (tok.name)
         {
-            Assert(name.EndsWith('\''), tok.loc, "Missing closing `\'` in char literal");
-            var code = Regex.Unescape(name.Trim('\''));
-            Assert(code.Length == 1, tok.loc, "Char literals cannot contain more than one char");
-            {
+            case ['\'', .. var rest, '\''] when Regex.Unescape(rest) is {} code :
+                Assert(code.Length == 1, tok.loc, "Char literals cannot contain more than one char");
                 value = code[0];
                 return true;
-            }
-        }
-        value = -1;
-        return false;
+            case ['\'', ..] when Error(tok.loc, "Missing closing `\'` in char literal") is {}:
+            default : 
+                value = -1;
+                return false;
+        };
     }
     
     static bool TryParseNumber(string word, out int value) => Int32.TryParse(word, out value);

@@ -115,7 +115,7 @@ static class Parser
             "@32" => IntrinsicType.load32,
             "!32" => IntrinsicType.store32,
             "fd_write" => IntrinsicType.fd_write,
-            {} when word.StartsWith('#') && TryParseCastType(word, out int cast)
+            ['#', .. var rest] when TryParseCastType(rest, out int cast)
                 => IntrinsicType.cast + cast,
             _ => (IntrinsicType)(-1)
         });
@@ -124,14 +124,14 @@ static class Parser
 
     static bool TryParseCastType(string word, out int result)
     {
-        word = word.Split('#')[1];
         result = word switch
         {
             "int"  =>  0,
             "bool" =>  1,
             "ptr"  =>  2,
             "any"  =>  3,
-            {} when word.StartsWith('*') && TryParseDataType(word.Split('*')[1], out result) => result,
+            ['*', .. var rest] 
+               when TryParseDataType(rest, out result) => result,
             {} when TryParseDataType(word, out result) => result,
             _ => -1
         };
@@ -346,16 +346,12 @@ static class Parser
         return false;
     }
 
-    static Op? TryGetOffset(string word, int index, Loc loc)
+    static Op? TryGetOffset(string word, int index, Loc loc) => word switch
     {
-        if(word.StartsWith('.'))
-        {
-            if(word.StartsWith(".*"))
-                 return (OpType.offset, index, loc);
-            else return (OpType.offset_load, index, loc);
-        }
-        return null;
-    }
+        ['.', '*', .. {}] => (OpType.offset, index, loc),
+        ['.', .. {}] => (OpType.offset_load, index, loc),
+        _ => null,
+    };
 
     static Op? TryGetLocalMem(string word, Loc loc)
     {
@@ -368,30 +364,27 @@ static class Parser
         return null;
     }
 
+    enum VarState { none, store, pointer }
+
     static bool TryGetVariable(string word, Loc loc)
     {
-        var store = false;
-        var pointer = false;
-        
-        if(word.StartsWith('!'))
+        (word, VarState wordState) = word switch
         {
-            word = word.Split('!')[1];
-            store = true;
-        }
-        else if(word.StartsWith('*'))
-        {
-            word = word.Split('*')[1];
-            pointer = true;
-        }
+            ['!', .. var rest] => (rest, VarState.store),
+            ['*', .. var rest] => (rest, VarState.pointer),
+            _ => (word, VarState.none)
+        };
 
         return (InsideProc && 
-               TryGetVar(word, loc, CurrentProc.localVars, true, store, pointer)) ||
-               TryGetVar(word, loc, varList, false, store, pointer);
+               TryGetVar(word, loc, CurrentProc.localVars, true, wordState)) ||
+               TryGetVar(word, loc, varList, false, wordState);
     }
 
-    static bool TryGetVar(string word, Loc loc, List<TypedWord> vars, bool local, bool store, bool pointer)
+    static bool TryGetVar(string word, Loc loc, List<TypedWord> vars, bool local, VarState varState)
     {
         var pushType = local ? OpType.push_local : OpType.push_global;
+        bool store = varState.HasFlag(VarState.store);
+        bool pointer = varState.HasFlag(VarState.pointer);
         var index = vars.FindIndex(val => val.name.Equals(word));
         if(index >= 0)
         {
@@ -497,9 +490,9 @@ static class Parser
 
     static bool TryGetDataPointer(string word, out TokenType typePtr)
     {
-        if(word.StartsWith('*')) 
+        if(word is ['*', .. var rest])
         {
-            word = word.Split('*')[1];
+            word = rest;
             var sucess = TryParseDataType(word, out int id);
             typePtr = TokenType.@int + id;
             return sucess;

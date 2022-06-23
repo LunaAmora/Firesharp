@@ -7,6 +7,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <PublishSingleFile>true</PublishSingleFile>
     <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <PublishReadyToRun>true</PublishReadyToRun>
