@@ -93,6 +93,19 @@ static class Parser
         return result;
     }
     
+    static IRToken[] IRTokensUntilPred(Predicate<IRToken> pred)
+    {
+        int i = 0;
+        while(IRTokens.Count > i && !pred(IRTokenAt(i))) i++;
+        var result = new IRToken[i];
+        for (int a = 0; a < i; a++)
+        {
+            result[a] = IRTokens.First();
+            IRTokens.RemoveFirst();
+        }
+        return result;
+    }
+    
     static bool TryGetIntrinsic(string word, out IntrinsicType result)
     {
         result = (word switch
@@ -348,8 +361,8 @@ static class Parser
 
     static Op? TryGetOffset(string word, int index, Loc loc) => word switch
     {
-        ['.', '*', .. {}] => (OpType.offset, index, loc),
-        ['.', .. {}] => (OpType.offset_load, index, loc),
+        ['.', '*', ..] => (OpType.offset, index, loc),
+        ['.', ..] => (OpType.offset_load, index, loc),
         _ => null,
     };
 
@@ -1122,7 +1135,7 @@ static class Parser
             sb.Append($"Expected {TypeNames(expected)} {notFound}, but found ");
             errorLoc = token.loc;
 
-            if(token.type.Equals(TokenType.word) && TryGetIntrinsic(wordList[token.operand], out IntrinsicType intrinsic))
+            if(token.type is TokenType.word && TryGetIntrinsic(wordList[token.operand], out IntrinsicType intrinsic))
                  sb.Append($"the Intrinsic `{intrinsic}`");
             else sb.Append($"a `{TypeNames(token.type)}`");
         }

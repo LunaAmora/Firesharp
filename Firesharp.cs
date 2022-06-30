@@ -9,7 +9,7 @@ public class Firesharp
 {
     public static async Task<int> Main() =>
         await new CliApplicationBuilder()
-            .SetDescription("Compiler for the Firesharp language.")
+            .SetDescription("Compiler for the Firelang language.")
             .SetExecutableName("Firesharp")
             .SetVersion("v0.1.0")
             .AllowDebugMode(false)

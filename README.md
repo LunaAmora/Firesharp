@@ -1,6 +1,6 @@
 # Firesharp
 
-__Firesharp__ is an [Concatenative](https://en.wikipedia.org/wiki/Concatenative_programming_language) [Stack-oriented](https://en.wikipedia.org/wiki/Stack-oriented_programming) programming language that compiles to [WASM](https://webassembly.org/).
+__Firesharp__ is compiler for __Firelang__, an [Concatenative](https://en.wikipedia.org/wiki/Concatenative_programming_language) [Stack-oriented](https://en.wikipedia.org/wiki/Stack-oriented_programming) programming language that compiles to [WASM](https://webassembly.org/).
 
 All thanks to [Tsoding](https://github.com/rexim), as this project is Heavily inspired by [Porth](https://gitlab.com/tsoding/porth).
 

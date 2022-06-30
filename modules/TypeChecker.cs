@@ -307,9 +307,10 @@ static class TypeChecker
         stack.ExpectArity(loc, contract);
         stack.Pop(contract.Count());
     }
+    
     static void ExpectExactPop(this DataStack stack, Loc loc, params TokenType[] contract)
     {
-        ExpectStackExact(stack.typeFrames, loc, contract);
+        stack.typeFrames.ExpectStackExact(loc, contract);
         stack.Pop(contract.Count());
     }
 

@@ -79,13 +79,13 @@ class Tokenizer
         bool TryParseString(Token tok, out int index)
         {
             index = dataList.Count;
-            if(tok.name.StartsWith('\"') && tok.name is string name)
+            if(tok.name is ['\"', ..] name)
             {
-                if(!name.EndsWith('\"'))
+                if(name is not [.., '\"'])
                 {
                     AdvanceByPredicate(pred => pred == '\"');
                     name = ReadByPredicate(pred => pred == ' ');
-                    Assert(name.EndsWith('\"'), tok.loc, "Missing closing `\"` in string literal");
+                    Assert(name is [.., '\"'], tok.loc, "Missing closing `\"` in string literal");
                 }
                 
                 name = name.Trim('\"');
