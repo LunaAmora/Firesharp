@@ -229,7 +229,7 @@ static class Parser
         },
         KeywordType.end => PopBlock(loc, type) switch
         {
-            {type: OpType.if_start} => (OpType.end_if, loc),  //TODO: Check for constants at the top of the stack, colapse/remove block if true
+            {type: OpType.if_start} => (OpType.end_if, loc),  //TODO: Check for constants at the top of the stack, collapse/remove block if true
             {type: OpType.@else}    => (OpType.end_else, loc),
             {type: OpType.@do}      => (OpType.end_while, loc),
             {type: OpType.case_option} => EndCase((OpType.end_case, loc)),
@@ -506,9 +506,9 @@ static class Parser
         if(word is ['*', .. var rest])
         {
             word = rest;
-            var sucess = TryParseDataType(word, out int id);
+            var success = TryParseDataType(word, out int id);
             typePtr = TokenType.@int + id;
-            return sucess;
+            return success;
         }
         typePtr = (TokenType)(-1);
         return false;
@@ -518,7 +518,7 @@ static class Parser
     {
         if(word.Contains(".."))
         {
-            (bool sucess, int val)[] parts = 
+            (bool success, int val)[] parts = 
                 word.Split("..")
                 .Select(part => 
                 {
@@ -528,7 +528,7 @@ static class Parser
                     return (false, 0);
                 })
                 .ToArray();
-            var success = parts.Count() is 2 && parts[0].sucess && parts[1].sucess;
+            var success = parts.Count() is 2 && parts[0].success && parts[1].success;
             range = (success) ? (parts[0].val, parts[1].val) : default;
             Assert(success && range.start <= range.end, loc, "Invalid range declaration");
             return true;
@@ -1078,7 +1078,7 @@ static class Parser
                 if(TryGetIntrinsic(word, out IntrinsicType intr))
                 {
                     Assert(caseType is CaseType.none or CaseType.equal, token.loc,
-                        "Case comparisson only supports one value at the match option.");
+                        "Case comparison only supports one value at the match option.");
                     caseType = intr switch
                     {
                         IntrinsicType.lesser    => CaseType.lesser,
